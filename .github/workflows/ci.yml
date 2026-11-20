@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt pip-audit==2.7.3
+      - name: Lint
+        run: ruff check backend tools worker
+      - name: Tests (decision engine, device API, auth, ML)
+        run: pytest backend/tests -q --cov=backend/services --cov-report=term
+      - name: Dependency audit
+        run: pip-audit -r requirements.txt --strict || pip-audit -r requirements.txt
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit -p .
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native unit tests (pure logic)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Ifirmware/test/shim -o native_tests firmware/test/test_logic/test_main.cpp
+          ./native_tests
+      - name: Compile for ESP32 (Arduino-ESP32 3.x)
+        uses: arduino/compile-sketches@v1
+        with:
+          fqbn: esp32:esp32:esp32
+          platforms: |
+            - name: esp32:esp32
+              source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          libraries: |
+            - name: ArduinoJson
+          sketch-paths: |
+            - firmware/gardekalinga_node
+            - firmware/legacy_single_probe

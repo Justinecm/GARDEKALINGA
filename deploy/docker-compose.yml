@@ -1,0 +1,96 @@
+# One always-on host (mini PC / Raspberry Pi 4-5 on site, or a cloud VPS).
+#   cp .env.example .env   (fill in the values)
+#   make up && make migrate && make create-manager && make register-device
+name: gardekalinga
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+    target: app
+  env_file: ../.env
+  environment:
+    DATABASE_URL: mysql+pymysql://gk_app:${MYSQL_PASSWORD}@mysql:3306/gardekalinga
+    MIGRATE_DATABASE_URL: mysql+pymysql://gk_migrate:${MYSQL_MIGRATE_PASSWORD}@mysql:3306/gardekalinga
+    GK_AUTO_CREATE_TABLES: "false"
+    GK_DEMO_MODE: "false"
+    GK_MODEL_DIR: /app/models
+    SESSION_COOKIE_SECURE: "true"
+  depends_on:
+    mysql:
+      condition: service_healthy
+  restart: unless-stopped
+  networks: [internal, egress]
+
+services:
+  caddy:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: caddy
+    environment:
+      GK_DOMAIN: ${GK_DOMAIN:-gardekalinga.local}
+      GK_TLS: ${GK_TLS:-internal}
+    ports: ["80:80", "443:443"]
+    volumes: [caddy_data:/data, caddy_config:/config]
+    depends_on: [api]
+    restart: unless-stopped
+    networks: [internal, egress]
+
+  api:
+    <<: *app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/ready').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    <<: *app
+    command: ["python", "worker/run.py"]
+    volumes: [models:/app/models]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 60s
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: gardekalinga
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_MIGRATE_PASSWORD: ${MYSQL_MIGRATE_PASSWORD}
+      TZ: UTC
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    volumes: [mysql_data:/var/lib/mysql, ./mysql-init:/docker-entrypoint-initdb.d:ro]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    networks: [internal]   # never published to the host or the internet
+
+  backup:
+    image: mysql:8.4
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes: [./backup/backup.sh:/backup.sh:ro, backups:/backups]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [internal]
+
+volumes:
+  mysql_data:
+  models:
+  backups:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    internal: true   # mysql: no route outside
+  egress: {}         # api/worker (OpenWeatherMap) and caddy (published ports)

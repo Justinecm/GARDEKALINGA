@@ -1,0 +1,10 @@
+.venv
+**/__pycache__
+*.db
+*.db-*
+firmware/**/build
+frontend/node_modules
+frontend/dist
+.env
+.env.*
+!.env.example
