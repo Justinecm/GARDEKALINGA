@@ -1,0 +1,284 @@
+openapi: 3.1.0
+info:
+  title: GARDEKALINGA API
+  version: 1.0.0
+  description: |
+    Device API (`/api/device/v1`, HMAC-signed by Box B) and dashboard API (`/api/v1`,
+    session cookie + `X-CSRF-Token` on unsafe methods). Errors always use
+    `{"error": {"code", "message", "fields"}}`. Times are UTC ISO 8601.
+servers:
+  - url: /
+components:
+  securitySchemes:
+    deviceHmac:
+      type: apiKey
+      in: header
+      name: X-GK-Signature
+      description: |
+        Also send X-GK-Device, X-GK-Timestamp (unix seconds) and X-GK-Nonce (32 hex).
+        Signature = hex(HMAC_SHA256(secret, METHOD \n PATH_WITH_QUERY \n TIMESTAMP \n NONCE \n hex(SHA256(body)))).
+        Rejected when the timestamp is more than 120 s off (unless the node has no time yet),
+        when the nonce was used in the last 10 minutes, or when the signature does not match.
+    session:
+      type: apiKey
+      in: cookie
+      name: gk_session
+    csrf:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            fields: { type: object, additionalProperties: { type: string } }
+    Probe:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string, enum: [S1, S2, S3] }
+        raw: { type: [integer, "null"], minimum: 0, maximum: 4095 }
+        vwc: { type: [number, "null"], minimum: 0, maximum: 100 }
+        fault: { type: boolean }
+    Reading:
+      type: object
+      required: [reading_uuid, probes]
+      properties:
+        reading_uuid: { type: string, minLength: 8, maxLength: 40 }
+        recorded_at: { type: string, format: date-time }
+        probes: { type: array, minItems: 1, maxItems: 3, items: { $ref: "#/components/schemas/Probe" } }
+        spatial_mean_vwc: { type: [number, "null"] }
+        active_probe_count: { type: integer, minimum: 0, maximum: 3 }
+        supply_v: { type: number }
+        power_source: { type: string, enum: [solar, adapter, unknown] }
+        control_mode: { type: string, enum: [online, offline_failsafe, sensor_fault] }
+        settings_version: { type: integer }
+        fw: { type: string }
+        uptime_s: { type: integer }
+        rssi: { type: integer }
+    Decision:
+      type: object
+      properties:
+        id: { type: integer }
+        action: { type: string, enum: [water, none] }
+        duration_s: { type: integer }
+        reason:
+          type: string
+          enum: [moist_enough, cold_start_threshold, predicted_below_threshold, probe_below_min, rain_pause, soak,
+                 already_watering, sensor_fault_schedule, prediction_unavailable, forecast_stale]
+    DeviceSettings:
+      type: object
+      description: Compact settings for the node (sent when its settings version is behind).
+      properties:
+        v: { type: integer, description: settings version }
+        thr: { type: number }
+        pmin: { type: number }
+        max: { type: integer }
+        soak: { type: integer }
+        gap: { type: integer }
+        flow: { type: number }
+        daily_l: { type: number }
+        am: { type: string, example: "06:00" }
+        pm: { type: string, example: "16:00" }
+        am_share: { type: number }
+        cal:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: number }
+            description: "[adc_dry, adc_sat, vwc_dry, vwc_sat]"
+    Event:
+      type: object
+      required: [uuid, type]
+      properties:
+        uuid: { type: string }
+        type: { type: string, enum: [actuation, power_transition, boot, read_now, fault_schedule_missed, info] }
+        occurred_at: { type: string, format: date-time }
+        trigger_source: { type: string, enum: [auto, manual, offline_failsafe, sensor_fault_schedule] }
+        decision_id: { type: [integer, "null"] }
+        command_id: { type: [integer, "null"] }
+        valve_open_at: { type: string, format: date-time }
+        pump_on_at: { type: string, format: date-time }
+        pump_off_at: { type: string, format: date-time }
+        valve_closed_at: { type: string, format: date-time }
+        interlock_ms: { type: integer }
+        close_gap_ms: { type: integer }
+        duration_s: { type: number }
+        ended_reason: { type: string, enum: [completed, max_cutoff, manual_stop, power_loss, watchdog] }
+        from: { type: string, enum: [solar, adapter, unknown] }
+        to: { type: string, enum: [solar, adapter, unknown] }
+        supply_v: { type: number }
+        reset_reason: { type: string }
+        fw: { type: string }
+        data: { type: object }
+paths:
+  /api/health:
+    get:
+      summary: Process is up (no auth)
+      responses: { "200": { description: OK } }
+  /api/ready:
+    get:
+      summary: Database reachable (no auth)
+      responses: { "200": { description: Ready }, "503": { description: Not ready } }
+
+  /api/device/v1/readings:
+    post:
+      summary: Send one 30-minute reading; get the current instruction
+      security: [{ deviceHmac: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Reading" } } } }
+      responses:
+        "200":
+          description: Decision for this reading (idempotent by reading_uuid)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  server_time: { type: string, format: date-time }
+                  decision: { $ref: "#/components/schemas/Decision" }
+                  settings: { oneOf: [{ $ref: "#/components/schemas/DeviceSettings" }, { type: "null" }] }
+                  time_unsynced: { type: boolean }
+        "401": { description: Authentication failed, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/device/v1/poll:
+    get:
+      summary: 3-second poll (≤ 300 bytes response)
+      security: [{ deviceHmac: [] }]
+      parameters:
+        - { name: p, in: query, schema: { type: integer, enum: [0, 1] }, description: pump on }
+        - { name: v, in: query, schema: { type: integer, enum: [0, 1] }, description: valve open }
+        - { name: src, in: query, schema: { type: string, enum: [solar, adapter, unknown] } }
+        - { name: sv, in: query, schema: { type: number }, description: supply volts }
+        - { name: m, in: query, schema: { type: string, enum: [online, offline_failsafe, sensor_fault] } }
+        - { name: w, in: query, schema: { type: integer }, description: "watering source: 0 none, 1 auto, 2 manual, 3 offline_failsafe, 4 fault schedule" }
+        - { name: rem, in: query, schema: { type: integer }, description: seconds left }
+        - { name: s, in: query, schema: { type: integer }, description: node settings version }
+      responses:
+        "200":
+          description: Pending commands and the current settings version
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  t: { type: string, format: date-time }
+                  s: { type: integer }
+                  cmd:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        op: { type: string, enum: [start, stop, read_now] }
+                        d: { type: integer, description: seconds (start) }
+  /api/device/v1/commands/{id}/ack:
+    post:
+      summary: Acknowledge a command
+      security: [{ deviceHmac: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [executed, rejected] }
+                reason: { type: string }
+                at: { type: string, format: date-time }
+      responses: { "200": { description: Stored } }
+  /api/device/v1/events:
+    post:
+      summary: One event, or {"events":[...]}
+      security: [{ deviceHmac: [] }]
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Event" } } } }
+      responses: { "200": { description: "Stored (idempotent by uuid)" } }
+  /api/device/v1/sync:
+    post:
+      summary: Upload the offline buffer (no new decisions; readings marked synced_offline)
+      security: [{ deviceHmac: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                readings: { type: array, maxItems: 200, items: { $ref: "#/components/schemas/Reading" } }
+                events: { type: array, maxItems: 400, items: { $ref: "#/components/schemas/Event" } }
+      responses: { "200": { description: Accepted and duplicate counts, plus current settings } }
+  /api/device/v1/settings:
+    get:
+      summary: Current settings for the node
+      security: [{ deviceHmac: [] }]
+      responses: { "200": { description: OK } }
+
+  /api/sensors/readings:
+    post:
+      summary: Compatibility endpoint for the original 1-probe sketch (GK_LEGACY_DEVICE_API=true, header X-Device-Key)
+      responses: { "200": { description: OK }, "404": { description: Turned off } }
+
+  /api/v1/auth/login:
+    post:
+      summary: Sign in (rate limited 5/min per IP and username; 15-minute lockout after 10 failures)
+      requestBody: { content: { application/json: { schema: { type: object, properties: { username: { type: string }, password: { type: string } } } } } }
+      responses: { "200": { description: User and CSRF token }, "401": { description: Wrong username or password }, "429": { description: Rate limited or locked } }
+  /api/v1/auth/logout: { post: { summary: Sign out, security: [{ session: [], csrf: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/auth/me: { get: { summary: Current user (or null) and CSRF token, responses: { "200": { description: OK } } } }
+  /api/v1/auth/password: { post: { summary: Change own password, security: [{ session: [], csrf: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/auth/reauth: { post: { summary: Confirm password (managers, every 15 min for sensitive changes), security: [{ session: [], csrf: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/auth/preferences: { patch: { summary: Language and theme, security: [{ session: [], csrf: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/status: { get: { summary: Everything the Garden screen needs, security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/readings: { get: { summary: "Readings (from, to, bucket=raw|hour|day|auto) and watering events", security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/forecast: { get: { summary: Latest forecast steps and rain pause, security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/forecast/history: { get: { summary: Stored forecasts (TC8), security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/predictions: { get: { summary: Predictions with actual values, security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/events/watering: { get: { summary: Watering log, security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/events/power: { get: { summary: Power changes and boots, security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/decisions: { get: { summary: Decision log with inputs, security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/device/periods: { get: { summary: Online / offline periods, security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/stats/ingestion: { get: { summary: Readings per day per source; command latency (TC4), security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/watering/start:
+    post:
+      summary: Manual start (caretaker, manager); clamped to max_actuation_sec
+      security: [{ session: [], csrf: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { duration_s: { type: integer } } } } } }
+      responses: { "202": { description: Command queued }, "409": { description: "Blocked: offline, fault schedule, already running" } }
+  /api/v1/watering/stop: { post: { summary: Manual stop, security: [{ session: [], csrf: [] }], responses: { "202": { description: Command queued } } } }
+  /api/v1/commands/{id}: { get: { summary: "Command phase (sending, still_waiting, executed, expired...)", security: [{ session: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: integer } }], responses: { "200": { description: OK } } } }
+  /api/v1/settings:
+    get: { summary: Current settings and field specs, security: [{ session: [] }], responses: { "200": { description: OK } } }
+    post: { summary: Save a new settings version (manager, recent password), security: [{ session: [], csrf: [] }], responses: { "200": { description: OK }, "422": { description: Out of range } } }
+  /api/v1/settings/history: { get: { summary: Settings versions with changes, security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/users:
+    get: { summary: Users (manager), security: [{ session: [] }], responses: { "200": { description: OK } } }
+    post: { summary: Add a user (manager), security: [{ session: [], csrf: [] }], responses: { "201": { description: Created } } }
+  /api/v1/users/{id}: { patch: { summary: "Role, active, name, password reset (manager)", security: [{ session: [], csrf: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: integer } }], responses: { "200": { description: OK } } } }
+  /api/v1/model: { get: { summary: Model card, versions, live accuracy, security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/model/retrain: { post: { summary: Retrain now (manager); queued when the trainer is not available here, security: [{ session: [], csrf: [] }], responses: { "201": { description: Trained }, "202": { description: Queued } } } }
+  /api/v1/model/{version}/activate: { post: { summary: Activate (only if it beats the baseline), security: [{ session: [], csrf: [] }], parameters: [{ name: version, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK }, "409": { description: Does not beat baseline } } } }
+  /api/v1/reports/{name}.csv:
+    get:
+      summary: "CSV: irrigation, power, water-use, prediction-accuracy, ingestion, decisions, readings, audit (manager, leader)"
+      security: [{ session: [] }]
+      parameters: [{ name: name, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: CSV } }
+  /api/v1/reports/water-use: { get: { summary: Daily water use (Eq. 8), security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/audit: { get: { summary: Audit trail (manager, leader), security: [{ session: [] }], responses: { "200": { description: OK } } } }
+  /api/v1/test-records:
+    get: { summary: Test bench records and summaries, security: [{ session: [] }], responses: { "200": { description: OK } } }
+    post: { summary: Add a trial (manager), security: [{ session: [], csrf: [] }], responses: { "201": { description: Created } } }
+  /api/v1/test-records/{tc}.csv: { get: { summary: Test bench CSV, security: [{ session: [] }], parameters: [{ name: tc, in: path, required: true, schema: { type: integer } }], responses: { "200": { description: CSV } } } }
+  /api/v1/devices:
+    get: { summary: Devices, security: [{ session: [] }], responses: { "200": { description: OK } } }
+    post: { summary: Register a device; the secret is returned once (manager), security: [{ session: [], csrf: [] }], responses: { "201": { description: Created } } }
+  /api/v1/devices/{id}/rotate-key: { post: { summary: New device secret (manager), security: [{ session: [], csrf: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } } }
+  /api/v1/devices/{id}/read-now: { post: { summary: Calibration helper reading (manager), security: [{ session: [], csrf: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "202": { description: Queued } } } }
+  /api/cron/due: { get: { summary: Run every due scheduled job (Authorization Bearer CRON_SECRET), responses: { "200": { description: OK }, "401": { description: Bad secret }, "404": { description: Disabled } } } }
+  /api/v1/demo:
+    get: { summary: Demo state (GK_DEMO_MODE only), security: [{ session: [] }], responses: { "200": { description: OK } } }
+    post: { summary: "Demo action: fault, offline, power, rain, dry, reset", security: [{ session: [], csrf: [] }], responses: { "200": { description: OK } } }

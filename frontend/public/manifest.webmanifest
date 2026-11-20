@@ -1,0 +1,10 @@
+{
+  "name": "GARDEKALINGA",
+  "short_name": "GARDEKALINGA",
+  "description": "Soil moisture, weather and watering for the Gawad Kalinga Community Garden.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EAF1EE",
+  "theme_color": "#1F5FA6",
+  "icons": [{ "src": "/icon-192.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

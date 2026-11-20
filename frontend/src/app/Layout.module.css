@@ -1,0 +1,63 @@
+.shell { min-height: 100dvh; }
+.top {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: var(--space-2);
+  height: var(--top-h);
+  padding: 0 10px 0 var(--space-3);
+  background: color-mix(in srgb, var(--page) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--hairline);
+}
+.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 750; letter-spacing: 0.01em; color: var(--ink); text-decoration: none; font-size: var(--fs-16); }
+.brandMark { width: 28px; height: 28px; }
+.spacer { flex: 1; }
+.node { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: var(--fs-14); padding: 5px 10px; white-space: nowrap; border-radius: 999px; background: var(--surface); border: 1px solid var(--hairline); }
+.nodeDot { width: 10px; height: 10px; border-radius: 50%; }
+.nodeOn { background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 25%, transparent); }
+.nodeOff { background: var(--critical); }
+.demo { display: none; align-items: center; gap: 4px; font-size: var(--fs-14); font-weight: 700; padding: 4px 10px; min-height: 32px; border-radius: var(--r-s); background: var(--paint); color: #1e2a24; border: 1px solid #b38700; cursor: pointer; }
+@media (min-width: 560px) { .demo { display: inline-flex; } }
+.menuBtn { min-width: var(--tap); padding: 8px; }
+@media (max-width: 374px) { .brand span { font-size: 14px; } }
+
+.bottom {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface); border-top: 1px solid var(--hairline);
+}
+.navLink {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  color: var(--ink-muted); text-decoration: none; font-size: 12.5px; font-weight: 600; min-width: 0;
+  position: relative;
+}
+.navLink span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+.navLink[aria-current="page"] { color: var(--drum); }
+.navLink[aria-current="page"]::before { content: ""; position: absolute; top: 0; left: 22%; right: 22%; height: 3px; border-radius: 0 0 3px 3px; background: var(--drum); }
+
+.rail { display: none; }
+.main { min-width: 0; }
+.banner { display: flex; gap: 8px; align-items: flex-start; padding: 10px var(--space-4); font-weight: 600; font-size: var(--fs-14); }
+.bannerOffline { background: color-mix(in srgb, var(--critical) 14%, var(--surface)); border-bottom: 1px solid color-mix(in srgb, var(--critical) 40%, transparent); }
+.bannerCache { background: color-mix(in srgb, var(--warning) 22%, var(--surface)); }
+
+@media (min-width: 960px) {
+  .shell { display: grid; grid-template-columns: 232px 1fr; grid-template-rows: var(--top-h) 1fr; }
+  .top { grid-column: 1 / -1; }
+  .bottom { display: none; }
+  .rail { display: flex; flex-direction: column; gap: 4px; padding: var(--space-4) var(--space-3); border-right: 1px solid var(--hairline); position: sticky; top: var(--top-h); height: calc(100dvh - var(--top-h)); }
+  .railLink { display: flex; align-items: center; gap: 12px; min-height: var(--tap); padding: 8px 12px; border-radius: var(--r-s); color: var(--ink); text-decoration: none; font-weight: 600; }
+  .railLink:hover { background: var(--surface-2); }
+  .railLink[aria-current="page"] { background: var(--drum-soft); color: var(--ink); box-shadow: inset 3px 0 0 var(--drum); }
+  .railFoot { margin-top: auto; display: grid; gap: 8px; color: var(--ink-muted); font-size: var(--fs-14); padding: 8px 12px; }
+}
+
+.menu { display: grid; gap: var(--space-5); }
+.who { display: flex; gap: 12px; align-items: center; }
+.avatar { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--drum-soft); color: var(--ink); font-weight: 750; }
+.skyChips { display: flex; flex-wrap: wrap; gap: 8px; }
+.skyChip { border: 1px solid var(--hairline); background: var(--surface); border-radius: 999px; padding: 6px 12px; min-height: 40px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; font-size: var(--fs-14); }
+.skyChip i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+.menuLinks { display: grid; gap: 4px; }
+.menuLink { display: flex; align-items: center; gap: 12px; min-height: var(--tap); padding: 8px 4px; color: var(--ink); text-decoration: none; font-weight: 600; border-bottom: 1px solid var(--hairline); background: none; border-left: 0; border-right: 0; border-top: 0; width: 100%; text-align: left; cursor: pointer; }

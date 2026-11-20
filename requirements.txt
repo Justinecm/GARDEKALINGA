@@ -1,0 +1,12 @@
+# Runtime dependencies of the API (Vercel Python function, Docker api and worker).
+# scikit-learn is NOT here on purpose: it does not fit the serverless bundle.
+# Training uses requirements-ml.txt; inference runs in pure Python (forest_runtime.py).
+Flask==3.1.0
+SQLAlchemy==2.0.36
+PyMySQL==1.1.1
+pydantic==2.10.3
+argon2-cffi==23.1.0
+httpx==0.28.1
+cryptography==44.0.0
+certifi==2024.12.14
+tzdata==2024.2

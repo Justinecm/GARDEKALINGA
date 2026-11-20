@@ -1,0 +1,35 @@
+# secrets
+.env
+.env.*
+!.env.example
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+*.db
+*.db-wal
+*.db-shm
+# node
+node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+# vercel
+.vercel/
+# firmware
+firmware/**/build/
+firmware/.pio/
+firmware/test/native_tests
+# deploy
+deploy/backups/
+models/
+frontend/tsconfig.tsbuildinfo
+
+.vercel
+.env*
+
+# chat attachment snapshot (source was extracted into the repo root)
+.cloud-attachments/

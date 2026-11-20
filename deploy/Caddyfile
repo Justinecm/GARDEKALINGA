@@ -1,0 +1,30 @@
+# GARDEKALINGA reverse proxy.
+#   On-site (recommended for the prototype): GK_DOMAIN=gardekalinga.local, GK_TLS=internal
+#     -> Caddy's own CA; export it for the ESP32 with `make export-ca`.
+#   Cloud VPS: GK_DOMAIN=your.domain, GK_TLS=you@example.org -> Let's Encrypt.
+{$GK_DOMAIN:localhost} {
+	tls {$GK_TLS:internal}
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		X-Frame-Options DENY
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		root * /srv
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}

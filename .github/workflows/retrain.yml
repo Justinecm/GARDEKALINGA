@@ -1,0 +1,33 @@
+# Weekly retraining for a Vercel deployment (Vercel functions do not ship
+# scikit-learn). Trains against the production database and stores the model in
+# ml_models; the Vercel function then predicts with the pure-Python forest.
+# Needs repository secrets: DATABASE_URL (and DATABASE_SSL=true for managed MySQL),
+# SECRET_KEY. Sunday 01:00 Asia/Manila = Saturday 17:00 UTC; every 6 h it also
+# picks up retrain requests queued from the dashboard.
+name: Retrain model
+
+on:
+  schedule:
+    - cron: "0 17 * * 6"
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    if: ${{ vars.GK_ENABLE_TRAINING == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-ml.txt
+      - name: Train if due or requested
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_SSL: ${{ vars.DATABASE_SSL }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DEVICE_KEY_ENC_KEY: ${{ secrets.DEVICE_KEY_ENC_KEY }}
+          GK_AUTO_CREATE_TABLES: "false"
+        run: python -m backend.cli train --if-requested

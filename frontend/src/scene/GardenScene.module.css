@@ -1,0 +1,75 @@
+.wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 400 / 250;
+  max-height: 52dvh;
+  border-radius: var(--r-l);
+  overflow: hidden;
+  background: #cfe5ef;
+  isolation: isolate;
+  --scene-leaf: #2e7d32;
+}
+.night { --scene-leaf: #4f9e55; }
+.svg { width: 100%; height: 100%; }
+.sky { transition: fill 1.2s var(--ease); }
+.skyline { fill: #9fb3bf; opacity: 0.55; }
+.night .skyline { fill: #1d3346; opacity: 0.9; }
+:global([data-period="hapon"]) .skyline { fill: #b09684; }
+.grass { fill: #8fbf6a; }
+.night .grass { fill: #355a3a; }
+.path { fill: #c9b48f; }
+.night .path { fill: #5b5141; }
+.tube { stroke: #2b2f2c; stroke-width: 3.2; fill: none; stroke-linejoin: round; }
+.flow { stroke: #7fc0ff; stroke-width: 1.6; fill: none; stroke-dasharray: 4 6; stroke-linejoin: round; opacity: 0.4; }
+.flowOn { opacity: 1; animation: flow 0.8s linear infinite; }
+.soil, .soilFront { transition: fill 1.4s var(--ease); }
+.soilFront { opacity: 0.35; mix-blend-mode: multiply; }
+.leaf { transform-box: view-box; transition: transform 900ms var(--ease), fill 900ms var(--ease); }
+.plant { transition: opacity 400ms; }
+.tag { fill: #fbfcfa; stroke: #c4cfc8; stroke-width: 0.8; }
+.tagFault { fill: #fbfcfa; stroke: #d03b3b; stroke-width: 1.2; }
+.tagText { font: 650 10px var(--font); fill: #1e2a24; font-variant-numeric: tabular-nums; }
+.plotNo { font: 700 9px var(--font); fill: #fbf3e6; opacity: 0.85; }
+.boxText { font: 700 9px var(--font); fill: #3e4540; }
+.spray path { stroke: #8fd0ff; stroke-width: 1.2; fill: none; stroke-dasharray: 2 3; stroke-linecap: round; animation: spray 0.6s linear infinite; }
+.droplet { fill: #a9dcff; animation: drip 0.9s ease-in infinite; }
+.pv { transition: opacity 600ms; }
+.pvOn path:first-child { filter: drop-shadow(0 0 3px #f2b705); }
+.glowPulse { animation: pulse 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.ledOn { animation: blink 1.6s ease-in-out infinite; }
+.drift { animation: drift 38s ease-in-out infinite alternate; }
+.driftSlow { animation: drift 60s ease-in-out infinite alternate-reverse; }
+.stars circle { animation: twinkle 3.5s ease-in-out infinite; }
+.rain line { stroke: #cfe7ff; stroke-width: 1.1; opacity: 0.75; animation: fall 0.7s linear infinite; }
+.night .rain line { stroke: #8fb5d8; }
+.flash { fill: #fff; opacity: 0; animation: flash 7s linear infinite; }
+.sun { transition: transform 2s var(--ease); }
+
+.plotButton {
+  position: absolute;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-s);
+  cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.plotButton:hover { background: rgba(255, 255, 255, 0.12); }
+.plotButton:focus-visible { outline: 3px solid #fff; box-shadow: 0 0 0 6px #1f5fa6; }
+
+@keyframes flow { to { stroke-dashoffset: -20; } }
+@keyframes spray { to { stroke-dashoffset: -10; } }
+@keyframes drip { 0% { transform: translateY(-4px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(8px); opacity: 0; } }
+@keyframes pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes drift { from { transform: translateX(-14px); } to { transform: translateX(18px); } }
+@keyframes twinkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes fall { from { transform: translate(0, -20px); } to { transform: translate(-6px, 70px); } }
+@keyframes flash { 0%, 95%, 100% { opacity: 0; } 96% { opacity: 0.55; } 97% { opacity: 0; } 98% { opacity: 0.35; } }
+
+/* Reduced motion: still droplets instead of animation. */
+@media (prefers-reduced-motion: reduce) {
+  .flowOn, .spray path, .droplet, .glowPulse, .ledOn, .drift, .driftSlow, .stars circle, .rain line, .flash { animation: none !important; }
+  .droplet { opacity: 1; }
+  .flash { opacity: 0; }
+}
