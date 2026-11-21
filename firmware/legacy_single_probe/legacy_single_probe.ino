@@ -1,16 +1,24 @@
 /*
-  GARDEKALINGA - original 1-probe sketch (sketch_nov20a.ino), version 1.1
+  GARDEKALINGA - original 1-probe sketch (sketch_nov20a.ino), version 1.2
   ======================================================================
   Same heart as the group's sketch: one probe on GPIO32, the IDLE ->
-  VALVE_OPENING -> RUNNING -> PUMP_STOPPING state machine, 30 s max run,
-  60 s cooldown, 3 timeouts lock auto mode, serial commands 1 / 0 / a.
+  VALVE_OPENING -> RUNNING -> PUMP_STOPPING state machine, 10 s max run,
+  60 s cooldown, 2 timeouts lock auto mode, calibration-span warning,
+  serial commands 1 / 0 / a.
 
   What changed for the web system (Vercel or Docker):
-    * HTTPS with the pinned Let's Encrypt roots (certs.h); http:// still works on a LAN
+    * HTTPS with the pinned Let's Encrypt roots (certs.h). Vercel only accepts https://
+      (*.vercel.app certificates are Let's Encrypt); http:// still works on a LAN server
     * reports to /api/sensors/readings (enable GK_LEGACY_DEVICE_API=true on the server)
-      with the raw ADC value, the irrigation state and the time left
-    * polls /api/sensors/commands every 3 s, so "Water now" and "Stop watering"
+      with the raw ADC value, the irrigation state and the time left: every 60 s and
+      right after each watering run
+    * polls /api/sensors/commands every 10 s, so "Water now" and "Stop watering"
       on the dashboard work with this hardware too, and acknowledges each command
+    * network calls happen only while idle. An HTTPS call can block for a few seconds,
+      so none is made while the valve or pump is on; MAX_RUN_MS stays exact
+    * ~10,000 requests a day (~300,000 a month), inside the Vercel Hobby limit of
+      1,000,000 function calls a month. Set GK_OFFLINE_AFTER_S=60 on the server so the
+      10 s polls and the quiet time during a run do not show the device as offline
 
   This is a bridge while Box B is wired for three probes. The full firmware is
   firmware/gardekalinga_node (paper pin map, HMAC signing, offline fail-safe...).
@@ -37,8 +45,11 @@
   const char* SERVER_BASE = "https://your-app.vercel.app";
   const char* DEVICE_ID   = "gk-node-01";
   const char* DEVICE_KEY  = "PASTE_THE_64_CHARACTER_DEVICE_SECRET";
-  const unsigned long REPORT_INTERVAL_MS = 15000;
-  const unsigned long POLL_INTERVAL_MS   = 3000;
+  const unsigned long REPORT_INTERVAL_MS = 60000;
+  const unsigned long POLL_INTERVAL_MS   = 10000;
+  // Generous: the first request after a quiet period wakes a cold Vercel function.
+  // Calls are made only while idle, so waiting does not stretch a watering run.
+  const unsigned long HTTP_TIMEOUT_MS    = 8000;
 #endif
 
 const int PROBE_PIN = 32;
@@ -46,19 +57,20 @@ const int PUMP_PIN  = 26;   // original wiring (see PIN NOTE above)
 const int VALVE_PIN = 27;
 
 const int DRY_VALUE = 3000;
-const int WET_VALUE = 1300;
+const int WET_VALUE = 1500;
+const int MIN_SPAN  = 300;  // DRY_VALUE - WET_VALUE below this means the calibration is wrong
 
 const int RAW_MIN = 205;    // paper: below 5 % of 0-4095 is a sensor fault
 const int RAW_MAX = 3890;   // paper: above 95 %
 
 const int START_BELOW = 40;
 const int STOP_ABOVE  = 60;
-const unsigned long MAX_RUN_MS       = 30000;
+const unsigned long MAX_RUN_MS       = 10000;  // also caps a dashboard "Water now"
 const unsigned long COOLDOWN_MS      = 60000;
 const unsigned long VALVE_LEAD_MS    = 500;
 const unsigned long READ_INTERVAL_MS = 1000;
 const int SAMPLES = 64;     // paper: 64 samples per reading
-const int MAX_TIMEOUT_RUNS = 3;
+const int MAX_TIMEOUT_RUNS = 2;
 
 enum State { IDLE, VALVE_OPENING, RUNNING, PUMP_STOPPING };
 State state = IDLE;
@@ -96,6 +108,10 @@ const char* modeName() {
 
 bool autoLocked() {
   return timeoutRuns >= MAX_TIMEOUT_RUNS;
+}
+
+bool calibrationTooNarrow() {
+  return (DRY_VALUE - WET_VALUE) < MIN_SPAN;
 }
 
 int readAverage() {
@@ -223,11 +239,24 @@ WiFiClient plain;
 
 bool beginRequest(HTTPClient& http, const String& path) {
   String url = String(SERVER_BASE) + path;
-  http.setTimeout(2500);         // keep the loop responsive: the state machine waits for us
-  http.setConnectTimeout(2500);
+  http.setTimeout(HTTP_TIMEOUT_MS);
+  http.setConnectTimeout(HTTP_TIMEOUT_MS);
   bool ok = url.startsWith("https") ? http.begin(tls, url) : http.begin(plain, url);
   if (ok) http.addHeader("X-Device-Key", DEVICE_KEY);
   return ok;
+}
+
+// One line telling what a failed request most likely needs.
+void explainStatus(int code) {
+  if (code == 200) return;
+  Serial.print("[WiFi] ");
+  if (code < 0)                         Serial.println("no connection: check Wi-Fi, SERVER_BASE, and that the certificate is Let's Encrypt");
+  else if (code == 301 || code == 308)  Serial.println("redirected: Vercel needs https:// in SERVER_BASE");
+  else if (code == 401)                 Serial.println("refused: check DEVICE_ID and DEVICE_KEY, and use the production domain (preview URLs are login-protected)");
+  else if (code == 404)                 Serial.println("not found: set GK_LEGACY_DEVICE_API=true in Vercel and redeploy");
+  else if (code == 422)                 Serial.println("rejected: the server did not accept the data");
+  else if (code >= 500)                 Serial.println("server error: open the Vercel function logs (DATABASE_URL? DEVICE_KEY_ENC_KEY?)");
+  else                                  Serial.println("unexpected status");
 }
 
 void connectWiFi() {
@@ -243,9 +272,11 @@ void connectWiFi() {
   tls.setCACert(GK_ISRG_ROOTS_PEM);
 }
 
-void reportWiFi() {
+void reportWiFi(bool now) {
   static unsigned long last = 0;
-  if (millis() - last < REPORT_INTERVAL_MS) return;
+  static bool first = true;
+  if (!now && !first && millis() - last < REPORT_INTERVAL_MS) return;
+  first = false;
   last = millis();
 
   if (WiFi.status() != WL_CONNECTED) {
@@ -268,6 +299,7 @@ void reportWiFi() {
   int code = http.POST(body);
   Serial.print("[WiFi] POST status: ");
   Serial.println(code);
+  explainStatus(code);
   http.end();
 }
 
@@ -281,11 +313,19 @@ void ackCommand(long id, bool executed, const char* reason) {
   http.end();
 }
 
-// Tiny parser for {"t":"...","cmd":[{"id":12,"op":"start","d":120}]}; enough for this bridge.
-long jsonNumberAfter(const String& s, const String& key, int from) {
-  int k = s.indexOf("\"" + key + "\":", from);
+// Tiny parser for {"cmd":[{"d":120,"id":12,"op":"start"}],"t":"..."}; enough for this bridge.
+// The server sorts the keys, so read each key inside its own {...}, never by position.
+long jsonNumber(const String& obj, const String& key) {
+  int k = obj.indexOf("\"" + key + "\":");
   if (k < 0) return -1;
-  return s.substring(k + key.length() + 3).toInt();
+  return obj.substring(k + key.length() + 3).toInt();
+}
+
+String jsonText(const String& obj, const String& key) {
+  int k = obj.indexOf("\"" + key + "\":\"");
+  if (k < 0) return String();
+  int start = k + key.length() + 4;
+  return obj.substring(start, obj.indexOf('"', start));
 }
 
 void pollCommands() {
@@ -297,16 +337,25 @@ void pollCommands() {
   int code = http.GET();
   String resp = code == 200 ? http.getString() : String();
   http.end();
-  int pos = resp.indexOf("\"cmd\"");
-  while (pos >= 0) {
-    int idPos = resp.indexOf("\"id\":", pos);
-    if (idPos < 0) break;
-    long id = jsonNumberAfter(resp, "id", pos);
-    int opPos = resp.indexOf("\"op\":\"", idPos);
-    String op = opPos >= 0 ? resp.substring(opPos + 6, resp.indexOf('"', opPos + 6)) : "";
-    long d = jsonNumberAfter(resp, "d", idPos);
-    int next = resp.indexOf("}", idPos);
-    if (id <= 0 || id == activeCommandId) { pos = next > 0 ? resp.indexOf("\"id\":", next) : -1; continue; }
+  if (code != 200) {
+    Serial.print("[WiFi] poll status: ");
+    Serial.println(code);
+    explainStatus(code);
+  }
+  int listStart = resp.indexOf("\"cmd\":[");
+  int listEnd   = listStart >= 0 ? resp.indexOf(']', listStart) : -1;
+  int pos = listStart;
+  while (pos >= 0 && listEnd > 0) {
+    int open = resp.indexOf('{', pos);
+    if (open < 0 || open > listEnd) break;
+    int close = resp.indexOf('}', open);
+    if (close < 0) break;
+    String obj = resp.substring(open, close + 1);
+    pos = close + 1;
+    long id = jsonNumber(obj, "id");
+    long d  = jsonNumber(obj, "d");
+    String op = jsonText(obj, "op");
+    if (id <= 0 || id == activeCommandId) continue;
     activeCommandId = id;
     if (op == "start") {
       if (state != IDLE) {
@@ -326,8 +375,19 @@ void pollCommands() {
     } else {
       ackCommand(id, false, "unsupported");
     }
-    pos = next > 0 ? resp.indexOf("\"id\":", next) : -1;
   }
+}
+
+// An HTTPS call can block for several seconds, so talk to the server only while idle.
+// The valve and pump timing (and MAX_RUN_MS) then never waits for the network.
+void networkTasks() {
+  static bool wasIdle = true;
+  bool idle = (state == IDLE);
+  bool runJustEnded = idle && !wasIdle;
+  wasIdle = idle;
+  if (!idle) return;
+  reportWiFi(runJustEnded);  // report at once after a run so the dashboard is current
+  pollCommands();
 }
 #endif
 
@@ -342,10 +402,17 @@ void setup() {
   analogSetPinAttenuation(PROBE_PIN, ADC_11db);
 
   Serial.println();
-  Serial.println("GARDEKALINGA firmware - 1 probe (bridge v1.1)");
+  Serial.println("GARDEKALINGA firmware - 1 probe (bridge v1.2)");
   Serial.println("Commands: 1 = manual ON, 0 = OFF/stop, a = auto");
+  if (calibrationTooNarrow()) {
+    Serial.println("!! WARNING: DRY_VALUE and WET_VALUE are too close together.");
+    Serial.println("!! Measure the probe in dry and in soaked soil and update both values.");
+  }
 
 #if ENABLE_WIFI
+  if (String(SERVER_BASE).startsWith("http://") && String(SERVER_BASE).indexOf(".vercel.app") > 0) {
+    Serial.println("!! WARNING: Vercel only answers https://. Change SERVER_BASE to https://...");
+  }
   connectWiFi();
 #endif
 
@@ -365,13 +432,13 @@ void loop() {
     Serial.print("  Mode: ");     Serial.print(modeName());
     if (sensorFault) Serial.print("  [SENSOR FAULT]");
     if (autoLocked()) Serial.print("  [AUTO LOCKED - check probe]");
+    if (calibrationTooNarrow()) Serial.print("  [CHECK CALIBRATION]");
     Serial.println();
   }
 
   runStateMachine();
 
 #if ENABLE_WIFI
-  reportWiFi();
-  pollCommands();
+  networkTasks();
 #endif
 }

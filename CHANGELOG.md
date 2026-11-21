@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- 1-probe bridge sketch (`firmware/legacy_single_probe`) v1.2, ready for Vercel: the group's current
+  values (10 s max run, 2 timeouts lock auto mode, `WET_VALUE` 1500, calibration-span warning);
+  report every 60 s and after each run, poll every 10 s (fits the Vercel Hobby limits); no network
+  call while the valve or pump is on; 8 s HTTP timeout for cold starts; a serial hint for each
+  failed request. Docs: step-by-step Vercel setup in `firmware/README.md`, `GK_OFFLINE_AFTER_S`.
+
+### Fixed
+- The bridge sketch ignored the duration of a dashboard **Water now** and always ran for the full
+  `MAX_RUN_MS`: the server sorts JSON keys, so `"d"` comes before `"id"`. Keys are now read inside
+  each command object.
+
 ## 1.0.0 (2026-11-20)
 
 First complete build from BUILD_PROMPT.md (paper draft v2).

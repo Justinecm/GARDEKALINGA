@@ -57,6 +57,7 @@ may reset after a cold start. That is fine for a preview or the defense. Use 1b 
    | `CRON_SECRET` | 32+ random characters (Vercel sends it to the cron job) |
    | `GK_DEMO_MODE` | `false` |
    | `GK_LEGACY_DEVICE_API` | `true` only while the original 1-probe sketch is in use |
+   | `GK_OFFLINE_AFTER_S` | `60` while the 1-probe sketch is in use (it polls every 10 s); leave unset (15 s) for the full firmware |
 
 4. **First manager and the device**, from your computer against the same database:
 
@@ -79,8 +80,11 @@ may reset after a cold start. That is fine for a preview or the defense. Use 1b 
    `.github/workflows/retrain.yml` then trains weekly (Sunday 01:00 Manila) and picks up
    "Retrain now" requests every 6 hours.
 
-**Request volume.** The node polls every 3 s, about 29,000 function calls a day. Check your
-Vercel plan's function-invocation limits. The on-site Docker profile has no such limit.
+**Request volume.** The node polls every 3 s, about 29,000 function calls a day (~870,000 a month).
+The Hobby plan includes 1,000,000 function calls and 4 active-CPU hours a month, and going over
+pauses every deployment for 30 days, so the full firmware on Hobby leaves little room for the
+dashboard. The 1-probe sketch (`firmware/legacy_single_probe`) makes about 10,000 calls a day.
+The on-site Docker profile has no such limit.
 
 **ESP32 and Vercel TLS.** The firmware pins the Let's Encrypt roots (ISRG Root X1/X2). If your
 domain's certificate chains to another root, choose "custom root CA" in the setup page and paste

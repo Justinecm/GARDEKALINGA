@@ -18,6 +18,41 @@
 If you flash `gardekalinga_node` on the original wiring, "valve first" becomes "pump first".
 Swap the IN1 / IN2 wires on the relay board first.
 
+## Connect the 1-probe sketch to Vercel (`legacy_single_probe/`)
+
+Demo mode (`GK_DEMO_MODE=true`) cannot take a real controller: its data lives in one function
+instance and its device key is never shown. Use the production setup in
+[docs/DEPLOY.md §1b](../docs/DEPLOY.md) (managed MySQL), then:
+
+1. **Vercel → Settings → Environment Variables (Production)**, in addition to the §1b variables:
+
+   | Name | Value | Why |
+   |---|---|---|
+   | `GK_LEGACY_DEVICE_API` | `true` | turns on `/api/sensors/*`, the API this sketch uses |
+   | `GK_OFFLINE_AFTER_S` | `60` | the sketch polls every 10 s and is quiet during a run; the default 15 s would flicker "offline" and block **Water now** |
+
+   Redeploy: new variables only reach new deployments.
+2. **Register the controller.** Sign in as a manager → **Settings → Controller → Register controller**,
+   ID `gk-node-01`. Copy the 64-character secret; it is shown once.
+3. **Edit the top of `legacy_single_probe.ino`:** `WIFI_SSID`, `WIFI_PASS`,
+   `SERVER_BASE = "https://<project>.vercel.app"` (the production domain, `https`, no trailing slash;
+   preview URLs are login-protected), `DEVICE_ID` (the ID from step 2) and `DEVICE_KEY` (the secret).
+   Keep `certs.h` in the same folder. `*.vercel.app` uses Let's Encrypt, which `certs.h` trusts.
+4. **Flash** (esp32 board package 3.x, no extra libraries) and open the Serial Monitor at 115200.
+   Expect `[WiFi] POST status: 200` right after Wi-Fi connects, and **Online** on the dashboard.
+   On a failed request the sketch prints a one-line hint under the status code
+   (308: use `https://`; 401: wrong ID or key, or a preview URL; 404: `GK_LEGACY_DEVICE_API` is off;
+   5xx: open the Vercel function logs).
+
+What to expect from this sketch:
+- About 10,000 requests a day (report every 60 s and after each run, poll every 10 s), well inside the
+  Vercel Hobby limit of 1,000,000 function calls a month. Going over that limit pauses every
+  deployment for 30 days, so do not shorten the intervals on Hobby.
+- The server keeps one reading per 30-minute slot.
+- **Water now** runs for the chosen time, but never longer than `MAX_RUN_MS` (10 s in this sketch).
+- No network call while the valve or pump is on, so the dashboard shows the run once it has ended.
+  Watering runs are not listed in History; the node has no clock. The full firmware does both.
+
 ## Build and flash (Arduino IDE)
 1. Boards Manager: **esp32 by Espressif, version 3.x** (ESP-IDF 5). Board: *ESP32 Dev Module*.
 2. Library Manager: **ArduinoJson 7**.
