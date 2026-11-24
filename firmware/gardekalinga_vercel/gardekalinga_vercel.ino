@@ -290,14 +290,46 @@ bool beginRequest(HTTPClient& http, const String& path) {
   return true;
 }
 
+const char* wifiProblem() {
+  switch (WiFi.status()) {
+    case WL_NO_SSID_AVAIL:  return "network name not found: check WIFI_SSID (exact spelling, 2.4 GHz only)";
+    case WL_CONNECT_FAILED: return "connection refused: check WIFI_PASS";
+    case WL_CONNECTION_LOST:return "connection lost";
+    case WL_DISCONNECTED:   return "not connected yet (wrong password also shows like this)";
+    default:                return "still trying";
+  }
+}
+
+// Lists the Wi-Fi networks the ESP32 can see, so a wrong WIFI_SSID is easy to spot.
+void listNetworks() {
+  Serial.println("[WiFi] Networks the ESP32 can see (copy the name exactly into WIFI_SSID):");
+  int n = WiFi.scanNetworks();
+  if (n <= 0) Serial.println("   none found (5 GHz networks are invisible to the ESP32)");
+  for (int i = 0; i < n; i++) {
+    Serial.print("   \"");
+    Serial.print(WiFi.SSID(i));
+    Serial.print("\"  signal ");
+    Serial.print(WiFi.RSSI(i));
+    Serial.println(" dBm");
+  }
+  WiFi.scanDelete();
+}
+
+void startWiFi() {
+  WiFi.disconnect();
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+}
+
 void connectWiFi() {
   tls.setCACert(GK_ISRG_ROOTS_PEM);         // Vercel uses Let's Encrypt certificates
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.print("Connecting to Wi-Fi");
+  Serial.print("Connecting to Wi-Fi \"");
+  Serial.print(WIFI_SSID);
+  Serial.print("\"");
+  startWiFi();
   unsigned long t = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t < 10000) {
+  while (WiFi.status() != WL_CONNECTED && millis() - t < 15000) {
     delay(500);
     Serial.print(".");
   }
@@ -305,7 +337,10 @@ void connectWiFi() {
     Serial.print(" connected, IP ");
     Serial.println(WiFi.localIP());
   } else {
-    Serial.println(" failed (will retry)");
+    Serial.print(" FAILED: ");
+    Serial.println(wifiProblem());
+    listNetworks();
+    startWiFi();
   }
 }
 
@@ -326,7 +361,13 @@ void reportWiFi() {
   last = millis();
 
   if (WiFi.status() != WL_CONNECTED) {
-    WiFi.reconnect();
+    Serial.print("[WiFi] not connected: ");
+    Serial.println(wifiProblem());
+    static unsigned long lastRetry = 0;
+    if (millis() - lastRetry >= 30000) {   // retry every 30 s; retrying sooner interrupts the attempt
+      lastRetry = millis();
+      startWiFi();
+    }
     return;
   }
 
