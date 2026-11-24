@@ -28,6 +28,7 @@
   #include <WiFi.h>
   #include <WiFiClientSecure.h>
   #include <HTTPClient.h>
+  #include <time.h>
   const char* WIFI_SSID   = "YOUR_WIFI_NAME";              // 2.4 GHz network only
   const char* WIFI_PASS   = "YOUR_WIFI_PASSWORD";
   // Your Vercel address, https, no trailing slash
@@ -322,7 +323,41 @@ void handleSerial() {
 #if ENABLE_WIFI
 WiFiClientSecure tls;
 
+// HTTPS needs the real date: before this, the ESP32 thinks it is 1970 and every
+// certificate looks "not valid yet" (TLS error -9984). Gets the time from the internet.
+bool clockIsSet() { return time(nullptr) > 1700000000; }   // after Nov 2023
+
+bool syncClock() {
+  if (clockIsSet()) return true;
+  static unsigned long lastTry = 0;
+  static bool started = false;
+  if (started && millis() - lastTry < 30000) return false;   // don't block the loop every call
+  lastTry = millis();
+  started = true;
+  configTime(0, 0, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
+  Serial.print("[TIME] Getting the date from the internet");
+  for (int i = 0; i < 20 && !clockIsSet(); i++) {           // up to 5 s
+    delay(250);
+    Serial.print(".");
+  }
+  if (!clockIsSet()) {
+    Serial.println(" FAILED (will retry). The network may block NTP (UDP port 123).");
+    return false;
+  }
+  time_t now = time(nullptr);
+  struct tm t;
+  gmtime_r(&now, &t);
+  char buf[32];
+  strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", &t);
+  Serial.print(" OK: ");
+  Serial.println(buf);
+  return true;
+}
+
 bool beginRequest(HTTPClient& http, const String& path) {
+#if !TLS_SKIP_CERT_CHECK
+  if (!syncClock()) return false;           // no date yet: HTTPS would fail anyway
+#endif
   String url = String(SERVER_BASE) + path;
   http.setTimeout(HTTP_TIMEOUT_MS);         // keep the loop responsive: the pump logic waits for us
   http.setConnectTimeout(HTTP_TIMEOUT_MS);
@@ -415,6 +450,7 @@ void connectWiFi() {
     Serial.print(" connected, IP ");
     Serial.println(WiFi.localIP());
     checkInternet();
+    syncClock();
   } else {
     Serial.print(" FAILED: ");
     Serial.println(wifiProblem());
