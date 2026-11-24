@@ -306,8 +306,17 @@ const char* wifiProblem() {
 // Lists the Wi-Fi networks the ESP32 can see, so a wrong WIFI_SSID is easy to spot.
 void listNetworks() {
   Serial.println("[WiFi] Networks the ESP32 can see (copy the name exactly into WIFI_SSID):");
+  WiFi.disconnect();                        // a scan fails while a connection attempt is running
+  delay(200);
   int n = WiFi.scanNetworks();
-  if (n <= 0) Serial.println("   none found (5 GHz networks are invisible to the ESP32)");
+  if (n < 0) {
+    Serial.print("   scan failed (code ");
+    Serial.print(n);
+    Serial.println(")");
+  } else if (n == 0) {
+    Serial.println("   none found: the antenna sees no 2.4 GHz network at all.");
+    Serial.println("   Move closer to the router, try a phone hotspot (2.4 GHz), or try another USB cable/port.");
+  }
   for (int i = 0; i < n; i++) {
     Serial.print("   \"");
     Serial.print(WiFi.SSID(i));
