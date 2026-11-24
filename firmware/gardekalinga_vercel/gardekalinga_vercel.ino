@@ -29,6 +29,7 @@
   #include <WiFiClientSecure.h>
   #include <HTTPClient.h>
   #include <time.h>
+  #include <mbedtls/x509_crt.h>
   const char* WIFI_SSID   = "YOUR_WIFI_NAME";              // 2.4 GHz network only
   const char* WIFI_PASS   = "YOUR_WIFI_PASSWORD";
   // Your Vercel address, https, no trailing slash
@@ -459,6 +460,28 @@ void connectWiFi() {
   }
 }
 
+// Prints the certificates the website sent (once). Needed to choose the right
+// root certificate; only works while the connection is still open.
+void printServerChain() {
+  static bool done = false;
+  if (done) return;
+  const mbedtls_x509_crt* c = tls.getPeerCertificate();
+  if (!c) return;
+  done = true;
+  Serial.println("[TLS] Certificates sent by the website:");
+  char buf[160];
+  for (int i = 0; c && i < 6; c = c->next, i++) {
+    Serial.print("   ");
+    Serial.print(i);
+    mbedtls_x509_dn_gets(buf, sizeof(buf), &c->subject);
+    Serial.print(" subject: ");
+    Serial.println(buf);
+    mbedtls_x509_dn_gets(buf, sizeof(buf), &c->issuer);
+    Serial.print("     issuer: ");
+    Serial.println(buf);
+  }
+}
+
 void printStatus(const char* what, int code) {
   Serial.print("[WiFi] ");
   Serial.print(what);
@@ -511,6 +534,7 @@ void reportWiFi() {
   if (!beginRequest(http, "/api/sensors/readings")) return;
   http.addHeader("Content-Type", "application/json");
   int code = http.POST(body);
+  if (code > 0) printServerChain();
   printStatus("POST readings", code);
   http.end();
 }
@@ -541,6 +565,7 @@ void pollCommands() {
   HTTPClient http;
   if (!beginRequest(http, String("/api/sensors/commands?device_id=") + DEVICE_ID)) return;
   int code = http.GET();
+  if (code > 0) printServerChain();
   String resp = code == 200 ? http.getString() : String();
   http.end();
   if (code != 200) {
