@@ -36,7 +36,10 @@
   const char* DEVICE_KEY  = "PASTE_THE_64_CHARACTER_DEVICE_SECRET";
   const unsigned long REPORT_INTERVAL_MS = 15000;
   const unsigned long POLL_INTERVAL_MS   = 3000;
-  const unsigned long HTTP_TIMEOUT_MS    = 2500;
+  const unsigned long HTTP_TIMEOUT_MS    = 5000;   // Vercel can take a few seconds to wake up
+  // TEST ONLY: true skips the certificate check, to find out whether the certificate
+  // is the problem. Set it back to false once the website answers 200.
+  #define TLS_SKIP_CERT_CHECK false
 
   // Let's Encrypt root certificates (ISRG Root X1 and X2). Vercel's HTTPS uses them.
   static const char GK_ISRG_ROOTS_PEM[] PROGMEM = R"PEM(
@@ -315,13 +318,36 @@ void listNetworks() {
   WiFi.scanDelete();
 }
 
+// Can the ESP32 find the website's address? Prints the answer once after connecting.
+void checkInternet() {
+  String host = String(SERVER_BASE);
+  host.replace("https://", "");
+  host.replace("http://", "");
+  int slash = host.indexOf('/');
+  if (slash >= 0) host = host.substring(0, slash);
+  IPAddress ip;
+  Serial.print("[WiFi] Looking up ");
+  Serial.print(host);
+  if (WiFi.hostByName(host.c_str(), ip)) {
+    Serial.print(" -> ");
+    Serial.println(ip);
+  } else {
+    Serial.println(" FAILED: the router gives no internet / DNS. Try a phone hotspot.");
+  }
+}
+
 void startWiFi() {
   WiFi.disconnect();
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 }
 
 void connectWiFi() {
+#if TLS_SKIP_CERT_CHECK
+  tls.setInsecure();
+  Serial.println("!! TLS_SKIP_CERT_CHECK is on: certificate NOT checked (testing only)");
+#else
   tls.setCACert(GK_ISRG_ROOTS_PEM);         // Vercel uses Let's Encrypt certificates
+#endif
   tls.setHandshakeTimeout(5);               // seconds; a bad network must not freeze the pump logic
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
@@ -337,6 +363,7 @@ void connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) {
     Serial.print(" connected, IP ");
     Serial.println(WiFi.localIP());
+    checkInternet();
   } else {
     Serial.print(" FAILED: ");
     Serial.println(wifiProblem());
@@ -352,8 +379,21 @@ void printStatus(const char* what, int code) {
   Serial.print(code);
   if (code == 404)      Serial.print("  (set GK_LEGACY_DEVICE_API=true on Vercel and redeploy)");
   else if (code == 401) Serial.print("  (DEVICE_ID or DEVICE_KEY is wrong)");
-  else if (code < 0)    Serial.print("  (no connection: check SERVER_BASE and Wi-Fi)");
+  else if (code == -11) Serial.print("  (timed out waiting for the website)");
   Serial.println();
+  if (code < 0) {
+    char err[120] = "";
+    int e = tls.lastError(err, sizeof(err));
+    Serial.print("        reason: ");
+    Serial.print(HTTPClient::errorToString(code));
+    if (e) {
+      Serial.print(" / TLS error ");
+      Serial.print(e);
+      Serial.print(": ");
+      Serial.print(err);
+    }
+    Serial.println();
+  }
 }
 
 void reportWiFi() {
