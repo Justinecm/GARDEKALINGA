@@ -322,6 +322,7 @@ void startWiFi() {
 
 void connectWiFi() {
   tls.setCACert(GK_ISRG_ROOTS_PEM);         // Vercel uses Let's Encrypt certificates
+  tls.setHandshakeTimeout(5);               // seconds; a bad network must not freeze the pump logic
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   Serial.print("Connecting to Wi-Fi \"");
