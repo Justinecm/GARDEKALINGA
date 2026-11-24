@@ -147,7 +147,6 @@ def build_status(now: datetime, user_role: str) -> dict[str, Any]:
 
     return {
         "server_time": iso(now),
-        "demo": bool(cfg.demo_mode),
         "status": {"code": code, "level": level, "offline": code_offline},
         "device": None
         if device is None

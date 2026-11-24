@@ -279,6 +279,3 @@ paths:
   /api/v1/devices/{id}/rotate-key: { post: { summary: New device secret (manager), security: [{ session: [], csrf: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } } }
   /api/v1/devices/{id}/read-now: { post: { summary: Calibration helper reading (manager), security: [{ session: [], csrf: [] }], parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "202": { description: Queued } } } }
   /api/cron/due: { get: { summary: Run every due scheduled job (Authorization Bearer CRON_SECRET), responses: { "200": { description: OK }, "401": { description: Bad secret }, "404": { description: Disabled } } } }
-  /api/v1/demo:
-    get: { summary: Demo state (GK_DEMO_MODE only), security: [{ session: [] }], responses: { "200": { description: OK } } }
-    post: { summary: "Demo action: fault, offline, power, rain, dry, reset", security: [{ session: [], csrf: [] }], responses: { "200": { description: OK } } }

@@ -3,14 +3,14 @@ COMPOSE = docker compose -f deploy/docker-compose.yml --env-file .env
 PY ?= python3
 
 .PHONY: help dev-api dev-web test firmware-test lint build up down logs migrate create-manager register-device \
-        rotate-device-key train backup restore export-ca demo-model simulate
+        rotate-device-key train backup restore export-ca
 
 help: ## list the targets
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-18s %s\n", $$1, $$2}'
 
 # ---------------------------------------------------------------- development
-dev-api: ## run the API on :5000 with the demo garden (SQLite)
-	GK_DEMO_MODE=true flask --app "backend.app:create_app" run -p 5000 --debug
+dev-api: ## run the API on :5000 (SQLite file gardekalinga-dev.db unless DATABASE_URL is set)
+	flask --app "backend.app:create_app" run -p 5000 --debug
 
 dev-web: ## run the dashboard on :5173 (proxies /api to :5000)
 	cd frontend && npm run dev
@@ -22,16 +22,10 @@ firmware-test: ## native unit tests of the firmware logic (g++)
 	g++ -std=c++17 -Wall -Wextra -Ifirmware/test/shim -o /tmp/gk_native_tests firmware/test/test_logic/test_main.cpp && /tmp/gk_native_tests
 
 lint: ## ruff and TypeScript checks
-	ruff check backend tools worker && cd frontend && npx tsc --noEmit -p .
+	ruff check backend worker && cd frontend && npx tsc --noEmit -p .
 
 build: ## build the dashboard
 	cd frontend && npm ci && npm run build
-
-demo-model: ## retrain the bundled demo model (needs requirements-ml.txt)
-	$(PY) tools/make_demo_model.py
-
-simulate: ## device simulator against a local API: make simulate SECRET=<hex>
-	$(PY) tools/device_simulator.py --url http://localhost:5000 --secret $(SECRET)
 
 # ---------------------------------------------------------------- docker deployment
 up: ## build and start caddy, api, worker, mysql, backup

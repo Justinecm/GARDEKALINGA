@@ -317,7 +317,7 @@ class JobRun(Base):
 
 
 class AppState(Base):
-    """Small key/value store (demo simulator state, forecast fetch errors)."""
+    """Small key/value store (forecast fetch status, retrain request)."""
 
     __tablename__ = "app_state"
     key: Mapped[str] = mapped_column(String(40), primary_key=True)

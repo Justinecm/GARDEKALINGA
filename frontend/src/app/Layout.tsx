@@ -12,7 +12,6 @@ import { fmtSmart } from "../lib/time";
 import { useAuth } from "./Auth";
 import s from "./Layout.module.css";
 import { useTheme } from "./Theme";
-import DemoPanel from "../screens/DemoPanel";
 
 interface NavItem { to: string; label: StringKey; icon: IconName }
 
@@ -42,11 +41,10 @@ function Logo() {
 
 export default function Layout() {
   const { t, lang, setLang } = useI18n();
-  const { user, logout, demo, savePrefs } = useAuth();
+  const { user, logout, savePrefs } = useAuth();
   const theme = useTheme();
   const { data, error, isError } = useStatus();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [demoOpen, setDemoOpen] = useState(false);
   const loc = useLocation();
   const nav = navItems(user?.role);
   const online = data?.device?.online;
@@ -60,12 +58,6 @@ export default function Layout() {
           <Logo />
           <span>{t("app_name")}</span>
         </NavLink>
-        {demo && (
-          <button type="button" className={s.demo} onClick={() => setDemoOpen(true)} aria-haspopup="dialog" aria-label={t("demo_controls")}>
-            <Icon name="flask" size={15} />
-            {t("demo_badge")}
-          </button>
-        )}
         <span className={s.spacer} />
         {data?.device && (
           <span className={s.node} title={t("last_seen", { time: fmtSmart(data.device.last_seen_at, lang) })}>
@@ -119,8 +111,6 @@ export default function Layout() {
           </NavLink>
         ))}
       </nav>
-
-      {demo && <DemoPanel open={demoOpen} onClose={() => setDemoOpen(false)} />}
 
       <Sheet open={menuOpen} title={t("menu")} onClose={() => setMenuOpen(false)}>
         <div className={s.menu}>
@@ -177,12 +167,6 @@ export default function Layout() {
                   {t(n.label)}
                 </NavLink>
               ))}
-            {demo && (
-              <button type="button" className={s.menuLink} onClick={() => { setMenuOpen(false); setDemoOpen(true); }}>
-                <Icon name="flask" />
-                {t("demo_controls")}
-              </button>
-            )}
             <button type="button" className={s.menuLink} onClick={() => { setMenuOpen(false); void logout(); }}>
               <Icon name="logout" />
               {t("sign_out")}

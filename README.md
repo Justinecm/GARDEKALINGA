@@ -21,17 +21,18 @@ Justine Melchor, Darell Sopeña. Adviser: Mark Anthony Ureta.
 | `firmware/gardekalinga_node/` | ESP32 firmware for Box B (three probes, interlock, fail-safe, fault schedule, power watch, watchdog, setup page). |
 | `firmware/legacy_single_probe/` | The group's original 1-probe sketch, updated to report to this dashboard and obey Water now / Stop. |
 | `firmware/original/` | `sketch_nov20a.ino` exactly as provided. |
-| `tools/` | Device simulator (signs requests like the firmware), demo-model trainer. |
 | `deploy/` | Docker Compose (Caddy HTTPS, API, worker, MySQL, backups). |
 | `docs/` | Decisions, deployment, API (OpenAPI 3.1), test evidence, operations, user guides EN / FIL. |
 
 ## Quick start
 
-**See it on Vercel in two minutes (demo mode, no database):** import the repository in Vercel and set
-`GK_DEMO_MODE=true` and `SECRET_KEY`. Sign in with `manager`, `caretaker` or `leader` and the
-password `gardekalinga-demo`. The demo garden has 17 days of history, a trained model and a virtual
-controller. Water now really waters, and the **Demo** button breaks a sensor, cuts the internet,
-switches the power or brings rain. Full steps: [docs/DEPLOY.md](docs/DEPLOY.md).
+The dashboard shows **only real data from the ESP32 (Box B)**: there is no demo mode, no simulated
+history and no synthetic weather. Until the controller sends its first reading the Garden screen
+says "No readings yet"; without `OWM_API_KEY` the Forecast screen says "No forecast yet".
+
+**On Vercel:** needs a MySQL-compatible database. Set `DATABASE_URL`, `DATABASE_SSL`, `SECRET_KEY`,
+`DEVICE_KEY_ENC_KEY`, `OWM_API_KEY` and `CRON_SECRET`, run the migration, create the first manager and
+register the controller. Full steps: [docs/DEPLOY.md](docs/DEPLOY.md#1-vercel).
 
 **On your computer:**
 
@@ -44,8 +45,19 @@ make dev-api
 ```
 
 ```bash
+python -m backend.cli create-manager --username ana --name "Ana Cruz"
+```
+
+```bash
+python -m backend.cli register-device --id gk-node-01
+```
+
+```bash
 cd frontend && npm install && npm run dev
 ```
+
+Then enter this computer's address, the device ID and the printed secret in the ESP32 setup page
+([firmware/README.md](firmware/README.md#first-setup)).
 
 **Production:** Vercel with managed MySQL, or Docker on a mini PC in the garden house
 (`make up`, `make migrate`, `make create-manager`, `make register-device`). See [docs/DEPLOY.md](docs/DEPLOY.md).
@@ -65,24 +77,27 @@ cd frontend && npm install && npm run dev
 
 | Check | Result |
 |---|---|
-| Backend tests (`pytest`) | 51 passed on SQLite; the same suite passes on **MySQL 8.4** |
-| Coverage | decision engine 97 %, rain pause 100 %, device service 90 %, ML pipeline 82–88 % (inference path 36 %, exercised end to end by the demo) |
+| Backend tests (`pytest`) | 53 passed on SQLite; set `GK_TEST_DATABASE_URL` to run the same suite on **MySQL 8.4** |
+| Coverage | decision engine 97 %, rain pause 100 %, device service 90 %, ML pipeline 82–88 % (inference path 36 %) |
 | Firmware logic tests (native, g++) | 17 passed: interlock 500 ms / 100 ms, max-time clamp, hysteresis, fail-safe, fault schedule, rollover |
 | Vercel | `vercel build` succeeded; the built function (Python 3.12, **no scikit-learn**) served login, status in ~60 ms and live model predictions |
-| Device simulator, end to end | 49 readings stored for 24 h, target ≥ 46 of 48 (TC4), offline buffer synced idempotently (TC10), command latency 2.0 s (≤ 6 s), manual stop logged with user (TC7), interlock 498 ms (TC6) |
 | Accessibility (axe, WCAG 2.1 AA) | 0 violations on all 9 screens |
 | Bundle budgets | initial JS ≈ 138 KB gzip (budget 170), fonts 53 KB (budget 60), poll response < 300 bytes |
 | Not run here | ESP32 compile (toolchain download blocked in this environment; CI compiles it), Docker image build (same reason; compose file validated, gunicorn + worker run against MySQL), Playwright on WebKit/Firefox |
 
-## Demo script (thesis defense)
+## Live walkthrough with Box B (thesis defense)
 
-1. Sign in as **caretaker** (Filipino). Read the garden status, then tap **Diligan ngayon** → 1 min → **Simulan**.
-   Watch "Ipinapadala…" become watering, then tap **Itigil**.
-2. **Demo → Rain coming.** The forecast shows the rain pause and the next check says watering is paused.
-3. **Demo → Sensor problem on Plot 2.** The plot turns hatched grey and is left out of the average.
-4. **Demo → Controller offline.** The garden shows "Controller offline". Water now is disabled with the reason. Turn it back on:
-   buffered readings are synced and marked offline.
-5. Sign in as **manager**: Settings (change the limit, see the new version and the audit trail), Forecast (model card), Reports (CSV, test bench).
+Everything below uses the real controller. Accounts are made by a manager under **Users**.
+
+1. Sign in as a **caretaker** (Filipino). Read the garden status, then tap **Diligan ngayon** → 1 min → **Simulan**.
+   Watch "Ipinapadala…" become watering while the valve and pump run, then tap **Itigil**.
+2. **Unplug the probe of Plot 2.** On the next reading (or **Settings → Capture raw reading** as a manager) the plot
+   turns hatched grey and is left out of the average.
+3. **Switch off the Wi-Fi router.** After about 15 s the garden shows "Controller offline" and Water now is disabled with
+   the reason. Switch it back on: the readings the node kept are synced and marked offline.
+4. The rain pause appears only when the OpenWeatherMap forecast gives ≥ 70 % chance and ≥ 2 mm of rain within 6 h.
+5. Sign in as **manager**: Settings (change the limit, see the new version and the audit trail), Forecast (model card
+   once the model has been trained on the garden's own readings), Reports (CSV, test bench).
 6. Sign in as **leader**: read-only garden, records and reports.
 
 ## Hardware note: check the pins

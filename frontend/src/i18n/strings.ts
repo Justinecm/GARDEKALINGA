@@ -30,8 +30,6 @@ export const en = {
   privacy_title: "Privacy",
   privacy_notice:
     "We keep only your name, username, role and a scrambled password, to sign you in and to record who started or stopped watering (Data Privacy Act of 2012).",
-  demo_title: "Demo accounts",
-  demo_note: "This is a demo garden with a virtual controller. Tap an account to fill in the form.",
   role_caretaker: "Caretaker",
   role_manager: "Manager",
   role_leader: "Community leader",
@@ -424,18 +422,6 @@ export const en = {
   sky_hapon: "Afternoon",
   sky_gabi: "Night",
 
-  // demo controls
-  demo_badge: "Demo",
-  demo_controls: "Demo controls",
-  demo_controls_lead: "Try what the garden does in different situations. Only in the demo.",
-  demo_fault: "Sensor problem on {plot}",
-  demo_offline: "Controller offline",
-  demo_solar: "Power on solar",
-  demo_rain: "Rain coming",
-  demo_dry: "Make the soil dry",
-  demo_reset: "Back to normal",
-  demo_buffered: "{n} readings saved on the controller",
-
   // generic
   loading: "Loading…",
   error_generic: "Something went wrong. Please try again.",
@@ -480,8 +466,6 @@ export const fil: Strings = {
   privacy_title: "Privacy",
   privacy_notice:
     "Ang itinatago lang namin ay ang iyong pangalan, username, tungkulin at naka-encrypt na password, para makapag-log in ka at maitala kung sino ang nagsimula o nagtigil ng pagdidilig (Data Privacy Act of 2012).",
-  demo_title: "Mga demo account",
-  demo_note: "Ito ay demo na hardin na may virtual na controller. Pindutin ang account para mapunan ang form.",
   role_caretaker: "Tagapag-alaga",
   role_manager: "Manager",
   role_leader: "Lider ng komunidad",
@@ -855,17 +839,6 @@ export const fil: Strings = {
   sky_tanghali: "Tanghali",
   sky_hapon: "Hapon",
   sky_gabi: "Gabi",
-
-  demo_badge: "Demo",
-  demo_controls: "Mga kontrol ng demo",
-  demo_controls_lead: "Subukan kung ano ang ginagawa ng hardin sa iba't ibang sitwasyon. Sa demo lang.",
-  demo_fault: "Problema sa sensor ng {plot}",
-  demo_offline: "Walang koneksyon ang controller",
-  demo_solar: "Kuryente mula sa solar",
-  demo_rain: "May paparating na ulan",
-  demo_dry: "Patuyuin ang lupa",
-  demo_reset: "Ibalik sa normal",
-  demo_buffered: "{n} sukat ang nakatabi sa controller",
 
   loading: "Naglo-load…",
   error_generic: "May nangyaring mali. Pakisubukan ulit.",

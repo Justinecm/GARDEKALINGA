@@ -14,24 +14,12 @@ Three ways to run it. All use the same code.
 
 ## 1. Vercel
 
-### 1a. Try it first: demo mode (2 minutes, no database)
+There is no demo mode: the dashboard shows only what the ESP32 (Box B) sends, so a Vercel
+deployment needs a real database. Without `DATABASE_URL` and `SECRET_KEY` the API refuses to start.
 
-1. Push this repository to GitHub and click **Add New → Project** in Vercel, then import it.
-   `vercel.json` already sets the build (`frontend/dist`) and the Python function (`api/index.py`, Python 3.12 from `.python-version`).
-2. In **Settings → Environment Variables** add:
-
-   | Name | Value |
-   |---|---|
-   | `GK_DEMO_MODE` | `true` |
-   | `SECRET_KEY` | 64 random hex characters (`python -c "import secrets;print(secrets.token_hex(32))"`) |
-
-3. Deploy. Open the URL and sign in with a demo account shown on the sign-in page
-   (`manager` / `caretaker` / `leader`, password `gardekalinga-demo`).
-
-Demo mode keeps its data in SQLite under `/tmp` of each function instance, so the demo garden
-may reset after a cold start. That is fine for a preview or the defense. Use 1b for real data.
-
-### 1b. Production on Vercel
+Push this repository to GitHub and click **Add New → Project** in Vercel, then import it.
+`vercel.json` already sets the build (`frontend/dist`) and the Python function (`api/index.py`,
+Python 3.12 from `.python-version`). Then:
 
 1. **Database.** Create a MySQL-compatible database, for example TiDB Cloud Serverless
    (free tier, MySQL 8 compatible, needs TLS). Note the host, port, user and password.
@@ -51,12 +39,13 @@ may reset after a cold start. That is fine for a preview or the defense. Use 1b 
    |---|---|
    | `DATABASE_URL` | `mysql+pymysql://USER:PASSWORD@HOST:4000/gardekalinga` |
    | `DATABASE_SSL` | `true` for managed MySQL |
-   | `SECRET_KEY` | 64 random hex characters |
+   | `SECRET_KEY` | 64 random hex characters (`python -c "import secrets;print(secrets.token_hex(32))"`) |
    | `DEVICE_KEY_ENC_KEY` | `python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"` |
    | `OWM_API_KEY` | your OpenWeatherMap key |
    | `CRON_SECRET` | 32+ random characters (Vercel sends it to the cron job) |
-   | `GK_DEMO_MODE` | `false` |
    | `GK_LEGACY_DEVICE_API` | `true` only while the original 1-probe sketch is in use |
+
+   If an older deployment had `GK_DEMO_MODE` set, delete it; it is no longer read.
 
 4. **First manager and the device**, from your computer against the same database:
 
@@ -68,7 +57,10 @@ may reset after a cold start. That is fine for a preview or the defense. Use 1b 
    DATABASE_URL="mysql+pymysql://USER:PASSWORD@HOST:4000/gardekalinga" DATABASE_SSL=true DEVICE_KEY_ENC_KEY="<same key as Vercel>" SECRET_KEY="<same>" python -m backend.cli register-device --id gk-node-01
    ```
 
-   The device secret is printed once. Enter it in the controller's setup page.
+   The device secret is printed once. Enter it in the controller's setup page
+   (see [firmware/README.md](../firmware/README.md), "First setup"). Once a manager exists you can also
+   register or re-key the controller from the dashboard: **Settings → Controller**.
+   The Garden screen says "No readings yet" until the ESP32 sends its first reading.
 5. **Scheduled jobs.** The dashboard runs due jobs on its own (forecast every hour while someone
    has it open). `vercel.json` adds one daily cron (allowed on the Hobby plan). For hourly
    forecasts with nobody watching, call `https://<app>/api/cron/due` every hour from any external
@@ -146,4 +138,22 @@ make dev-api
 make dev-web
 ```
 
-Open http://localhost:5173 and use a demo account.
+Create a manager for the local database and register a controller:
+
+```bash
+python -m backend.cli create-manager --username ana --name "Ana Cruz"
+```
+
+```bash
+python -m backend.cli register-device --id gk-node-01
+```
+
+Open http://localhost:5173 and sign in. Nothing appears on the dashboard until the controller sends data.
+For a bench ESP32 on the same Wi-Fi, run the API without the debugger so it listens on the network:
+
+```bash
+flask --app "backend.app:create_app" run -p 5000 --host 0.0.0.0
+```
+
+and enter `http://<this computer's LAN IP>:5000` in the controller's setup page ("Plain HTTP, bench test only")
+with the printed secret.

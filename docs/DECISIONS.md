@@ -26,7 +26,7 @@ the inconsistencies from BUILD_PROMPT A-9. One line each: **decision**, reason, 
 | Hosting | Scheduled jobs run three ways: Docker worker (APScheduler), Vercel Cron (`/api/cron/due`, daily on Hobby), and an **opportunistic runner** on dashboard `/status` calls. | Vercel Hobby cron runs at most once a day. | `backend/services/jobs.py`; add an external cron to `/api/cron/due` with `CRON_SECRET` for hourly runs. |
 | ML | Training needs scikit-learn and runs in the worker, `make train` or the `Retrain model` GitHub Action. Inference walks the exported trees in pure Python (`forest_runtime.py`, identical to `RandomForestRegressor.predict`, tested). | scikit-learn + SciPy do not fit a serverless bundle comfortably. | `requirements-ml.txt`, `.github/workflows/retrain.yml`. |
 | ML | On Vercel, "Retrain now" queues a request (`app_state.retrain_request`) picked up by the worker or the Action. | Same reason. | — |
-| ML | n_estimators = 300, min_samples_leaf = 2, random_state = 42 (demo model: 100 trees). | FR-ML-04 "e.g." values. | `train_model(n_estimators=...)`. |
+| ML | n_estimators = 300, min_samples_leaf = 2, random_state = 42. | FR-ML-04 "e.g." values. | `train_model(n_estimators=...)`. |
 | ML | The forecast step "for hour h+1" is the step from the latest batch retrieved before h whose time is closest to h+1 (within 3 h). | FR-ML-01 needs one step per hour. | `backend/services/ml/dataset.py`. |
 | Cold start | The 14-day cold start begins with the **first live reading** (`deployment_started_at`), editable by a manager. | Paper says "first 14 days after deployment". | Settings > Learning period started. |
 | Phase | `system_settings.operating_phase` is updated by a system row when the phase changes (model activated after day 14). | FR-CTL-08 "stored". | `jobs._phase_sync`. |
@@ -44,17 +44,17 @@ the inconsistencies from BUILD_PROMPT A-9. One line each: **decision**, reason, 
 | Firmware | HTTPS pins ISRG Root X1 + X2 by default; the setup page accepts a custom root (Caddy `tls internal`) or plain HTTP for bench tests. | C-6 TLS pinning. | Setup page (hold BOOT at power-up). |
 | Firmware | The original 1-probe sketch is kept as a **bridge** (`firmware/legacy_single_probe`), using `/api/sensors/*` with `X-Device-Key`; off unless `GK_LEGACY_DEVICE_API=true`. | Lets the group test the dashboard with today's hardware. | Env var; remove when Box B has three probes. |
 | Power | With `power_setup = adapter_only` an UNKNOWN source is shown as the wall socket. | FR-PWR-02 dashboard labelling while Box A is not built. | Settings > Power. |
-| Demo | `GK_DEMO_MODE=true` seeds 17 days of simulated history, three demo accounts and a virtual Box B so a Vercel preview works with no hardware. Turn it off for the real garden. | Thesis defense and beta testing. | Env var. |
+| Data | No demo mode and no simulated data: every reading, watering event and power change shown comes from the registered ESP32 (Box B), forecasts only from OpenWeatherMap, and the Random Forest is trained only on the garden's own readings. On Vercel a real `DATABASE_URL` is required. | Real garden data only (demo mode removed after 1.0.0). | `backend/config.py`. |
 | Security | Signed cookie sessions (stateless) with rotation at login, 7-day rolling / 30-day absolute; a password change ends older sessions. | Works on serverless without a session store. | `backend/security.py`. |
 | Security | CSP allows inline *styles* (`style-src 'unsafe-inline'`) but no inline script. | React sets dynamic styles; C-9 forbids inline script only. | `vercel.json`, `deploy/Caddyfile`. |
 | UI | Forms use controlled React state and server-side field specs (unit, range, step from `/settings`), not React Hook Form + Zod. | Smaller bundle; the server is the single source of ranges. | `frontend/src/screens/Settings.tsx`. |
 | UI | Hand-written service worker instead of vite-plugin-pwa; last `/status` kept in `localStorage`. | Fewer dependencies; no push notifications. | `frontend/public/sw.js`. |
 | UI | "Langit" sky preview chips (Morning / Midday / Afternoon / Night) in the menu show another time of day for 8 s. | Interactive theme requested by the group. | `ThemeProvider.previewPeriod`. |
-| Data | Database: MySQL 8.4 (tested, including the full test suite). SQLite for development and the demo. | Paper. | `DATABASE_URL`. |
+| Data | Database: MySQL 8.4 (tested, including the full test suite). SQLite for local development and tests. | Paper. | `DATABASE_URL`. |
 
 ## Supporting tables (for the ERD note)
 
 `devices`, `device_commands`, `control_decisions`, `ml_models`, `audit_logs`, `test_records`,
 `device_status_periods`, plus `device_events` (boot / reset reasons, read-now), `device_nonces`
 (replay protection), `login_attempts` (rate limit and lockout), `daily_water_use` (Equation 8),
-`job_runs` (scheduler bookkeeping) and `app_state` (forecast status, retrain request, demo state).
+`job_runs` (scheduler bookkeeping) and `app_state` (forecast status, retrain request).

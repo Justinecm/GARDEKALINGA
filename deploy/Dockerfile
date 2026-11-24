@@ -18,7 +18,6 @@ COPY requirements.txt requirements-ml.txt ./
 RUN pip install --no-cache-dir -r requirements-ml.txt alembic==1.14.0
 COPY backend/ backend/
 COPY worker/ worker/
-COPY tools/ tools/
 RUN mkdir -p /app/models && chown gk /app/models
 USER gk
 EXPOSE 8000

@@ -8,8 +8,6 @@ import ReauthDialog from "../components/ReauthDialog";
 
 interface AuthValue {
   user: User | null;
-  demo: boolean;
-  demoAccounts: Me["demo_accounts"];
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -57,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setMe(m);
         applyUser(m.user);
       })
-      .catch(() => setMe({ user: null, csrf: null, demo: false }))
+      .catch(() => setMe({ user: null, csrf: null }))
       .finally(() => setLoading(false));
   }, [applyUser]);
 
@@ -78,10 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (username: string, password: string) => {
-      const r = await api.post<{ user: User; csrf: string; demo: boolean }>("/api/v1/auth/login", { username, password });
+      const r = await api.post<{ user: User; csrf: string }>("/api/v1/auth/login", { username, password });
       setCsrf(r.csrf);
       qc.clear();
-      setMe((m) => ({ ...(m ?? { demo: r.demo }), user: r.user, csrf: r.csrf, demo: r.demo }));
+      setMe({ user: r.user, csrf: r.csrf });
       applyUser(r.user);
     },
     [qc, applyUser],
@@ -100,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const m = await api.get<Me>("/api/v1/auth/me").catch(() => null);
       setCsrf(m?.csrf ?? null);
-      setMe(m ?? { user: null, csrf: null, demo: false });
+      setMe(m ?? { user: null, csrf: null });
     }
   }, [qc]);
 
@@ -111,8 +109,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthValue>(
     () => ({
       user: me?.user ?? null,
-      demo: !!me?.demo,
-      demoAccounts: me?.demo_accounts,
       loading,
       login,
       logout,

@@ -29,10 +29,6 @@ def _check():
 def run_due():
     _check()
     now = utcnow()
-    if current_app.config["GK"].demo_mode:
-        from ..services import demo
-
-        demo.tick(now)
     names = tuple(jobs.JOBS.keys())
     return jsonify({"ran": jobs.run_due(now, names), "at": iso(now)})
 

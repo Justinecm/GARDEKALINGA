@@ -6,7 +6,6 @@
   python -m backend.cli rotate-device-key --id gk-node-01
   python -m backend.cli train
   python -m backend.cli run-jobs
-  python -m backend.cli seed-demo
 """
 from __future__ import annotations
 
@@ -33,14 +32,12 @@ def main(argv: list[str] | None = None) -> int:
     t = sub.add_parser("train", help="train the Random Forest now (needs requirements-ml.txt)")
     t.add_argument("--if-requested", action="store_true", help="only when a manager queued a retrain or the schedule is due")
     sub.add_parser("run-jobs", help="run every due scheduled job once")
-    sub.add_parser("seed-demo", help="fill the database with demo data (GK_DEMO_MODE)")
     args = p.parse_args(argv)
 
     from .app import create_app
     from .db import Base, SessionLocal, get_engine
 
-    overrides = {"GK_DEMO_MODE": "true"} if args.cmd == "seed-demo" else None
-    app = create_app(overrides)
+    app = create_app()
     with app.app_context():
         s = SessionLocal()
         if args.cmd == "create-tables":
@@ -123,12 +120,6 @@ def main(argv: list[str] | None = None) -> int:
             from .timeutil import utcnow
 
             print(run_due(utcnow(), tuple(JOBS)))
-            s.commit()
-        elif args.cmd == "seed-demo":
-            from .services.demo import ensure_seeded
-            from .timeutil import utcnow
-
-            print("Seeded." if ensure_seeded(utcnow()) else "Already seeded.")
             s.commit()
     return 0
 

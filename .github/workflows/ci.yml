@@ -16,7 +16,7 @@ jobs:
           cache: pip
       - run: pip install -r requirements-dev.txt pip-audit==2.7.3
       - name: Lint
-        run: ruff check backend tools worker
+        run: ruff check backend worker
       - name: Tests (decision engine, device API, auth, ML)
         run: pytest backend/tests -q --cov=backend/services --cov-report=term
       - name: Dependency audit

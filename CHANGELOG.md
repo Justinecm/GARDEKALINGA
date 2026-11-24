@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Removed
+- Demo mode (`GK_DEMO_MODE`): the virtual Box B, the 17 days of simulated history, the demo accounts
+  and the **Demo** controls. The dashboard now shows only what the ESP32 sends.
+- Synthetic weather: without `OWM_API_KEY` there is no forecast (the Forecast screen says so) instead of invented weather.
+- The bundled demo model trained on simulated data (`demo_model.json.z`, `tools/make_demo_model.py`). The first model is
+  trained on the garden's own readings after the 14-day learning period.
+- The device simulator (`tools/device_simulator.py`) and the `demo-model`, `simulate` and `seed-demo` commands.
+
+### Changed
+- On Vercel the API no longer falls back to a throwaway SQLite file: `DATABASE_URL` and `SECRET_KEY` are required.
+- `make dev-api` runs against a plain local database with no seeded garden.
+
 ## 1.0.0 (2026-11-20)
 
 First complete build from BUILD_PROMPT.md (paper draft v2).

@@ -13,7 +13,7 @@ from backend.db import SessionLocal
 
 @pytest.fixture()
 def app(tmp_path, monkeypatch):
-    for k in ("GK_DEMO_MODE", "DATABASE_URL", "OWM_API_KEY", "VERCEL", "CRON_SECRET", "GK_LEGACY_DEVICE_API"):
+    for k in ("DATABASE_URL", "OWM_API_KEY", "VERCEL", "CRON_SECRET", "GK_LEGACY_DEVICE_API"):
         monkeypatch.delenv(k, raising=False)
     # GK_TEST_DATABASE_URL=mysql+pymysql://... runs the same suite on MySQL 8.4.
     url = os.environ.get("GK_TEST_DATABASE_URL") or f"sqlite:///{tmp_path / 'test.db'}"

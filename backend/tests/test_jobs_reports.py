@@ -39,17 +39,47 @@ def test_test_bench_tc14(client, login):
     assert csv.status_code == 200 and b"flow_lpm" in csv.data
 
 
-def test_demo_mode_runs(tmp_path, monkeypatch):
-    from backend.app import create_app
+def test_fresh_install_has_no_mock_data(client, login):
+    """No seeded users, device, readings or forecast: everything shown comes from the ESP32."""
+    from sqlalchemy import func, select
+
+    from backend.models import Device, SensorLog, User, WeatherForecast
+
+    s = SessionLocal()
+    assert s.scalar(select(func.count()).select_from(User)) == 0
+    login()
+    st = client.get("/api/v1/status").json
+    assert "demo" not in st
+    assert st["device"] is None and st["reading"] is None and st["status"]["code"] == "no_readings"
+    assert s.scalar(select(func.count()).select_from(Device)) == 0
+    assert s.scalar(select(func.count()).select_from(SensorLog)) == 0
+    # Without OWM_API_KEY there is no forecast at all (no synthetic weather).
+    assert s.scalar(select(func.count()).select_from(WeatherForecast)) == 0
+    assert client.get("/api/v1/demo").status_code == 404
+    me = client.get("/api/v1/auth/me").json
+    assert "demo" not in me and "demo_accounts" not in me
+
+
+def test_status_shows_device_reading(client, login, dev_client):
+    from backend.tests.conftest import reading
+
+    login()
+    r = dev_client.post("/api/device/v1/readings", reading("esp32-0001"))
+    assert r.status_code == 200, r.json
+    st = client.get("/api/v1/status").json
+    assert st["device"]["id"] == "gk-node-01"
+    probes = {p["id"]: p for p in st["reading"]["probes"]}
+    assert probes["S1"]["vwc"] == 31.4 and probes["S1"]["raw"] == 2210
+    assert probes["S3"]["fault"] is True
+
+
+def test_vercel_requires_real_database(monkeypatch):
+    import pytest
+
+    from backend.config import load_settings
 
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    a = create_app({"DATABASE_URL": f"sqlite:///{tmp_path / 'demo.db'}", "GK_DEMO_MODE": "true", "SECRET_KEY": "x"})
-    with a.app_context():
-        c = a.test_client()
-        r = c.post("/api/v1/auth/login", json={"username": "manager", "password": "gardekalinga-demo"})
-        assert r.status_code == 200
-        st = c.get("/api/v1/status").json
-        assert st["demo"] is True and st["reading"] is not None and st["device"]["online"] is True
-        h = {"X-CSRF-Token": r.json["csrf"]}
-        assert c.post("/api/v1/demo", json={"action": "fault", "value": {"probe": "S2", "on": True}}, headers=h).status_code == 200
-        SessionLocal.remove()
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+    # A leftover GK_DEMO_MODE=true must not bring back the throwaway SQLite garden.
+    with pytest.raises(RuntimeError, match="DATABASE_URL"):
+        load_settings({"VERCEL": "1", "GK_DEMO_MODE": "true", "SECRET_KEY": "x"})

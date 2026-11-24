@@ -42,25 +42,11 @@ def create_app(overrides: dict | None = None) -> Flask:
 
     register_error_handlers(app)
 
-    from .blueprints import admin, auth, control, cron, dashboard, demo, device, health, model, reports, settings, users
+    from .blueprints import admin, auth, control, cron, dashboard, device, health, model, reports, settings, users
 
     for bp in (health.bp, auth.bp, dashboard.bp, control.bp, settings.bp, users.bp, model.bp, reports.bp, admin.bp,
-               device.bp, device.legacy_bp, cron.bp, demo.bp):
+               device.bp, device.legacy_bp, cron.bp):
         app.register_blueprint(bp)
-
-    if cfg.demo_mode:
-
-        @app.before_request
-        def _demo_seed():
-            # First request of a fresh instance seeds the demo garden (users, history).
-            if app.config.get("_demo_ready") or request.path in ("/api/health",):
-                return
-            from .services import demo
-            from .timeutil import utcnow
-
-            demo.ensure_seeded(utcnow())
-            SessionLocal().commit()
-            app.config["_demo_ready"] = True
 
     @app.after_request
     def _commit_and_headers(resp):

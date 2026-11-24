@@ -13,7 +13,6 @@ x-app: &app
     DATABASE_URL: mysql+pymysql://gk_app:${MYSQL_PASSWORD}@mysql:3306/gardekalinga
     MIGRATE_DATABASE_URL: mysql+pymysql://gk_migrate:${MYSQL_MIGRATE_PASSWORD}@mysql:3306/gardekalinga
     GK_AUTO_CREATE_TABLES: "false"
-    GK_DEMO_MODE: "false"
     GK_MODEL_DIR: /app/models
     SESSION_COOKIE_SECURE: "true"
   depends_on:

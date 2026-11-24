@@ -23,5 +23,5 @@ def ready():
     except Exception:  # pragma: no cover
         db_ok = False
     cfg = current_app.config["GK"]
-    body = {"ok": db_ok, "database": db_ok, "demo": cfg.demo_mode, "weather_key": bool(cfg.owm_api_key)}
+    body = {"ok": db_ok, "database": db_ok, "weather_key": bool(cfg.owm_api_key)}
     return jsonify(body), (200 if db_ok else 503)

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from flask import Blueprint, current_app, g, jsonify, request
+from flask import Blueprint, g, jsonify, request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
@@ -89,7 +89,7 @@ def login():
     user.last_login_at = now  # type: ignore[union-attr]
     token = start_session(user)  # type: ignore[arg-type]
     audit("auth.login", f"user:{user.user_id}", user_id=user.user_id)  # type: ignore[union-attr]
-    return jsonify({"user": user_public(user), "csrf": token, "demo": current_app.config["GK"].demo_mode})  # type: ignore[arg-type]
+    return jsonify({"user": user_public(user), "csrf": token})  # type: ignore[arg-type]
 
 
 @bp.post("/logout")
@@ -104,18 +104,10 @@ def logout():
 def me():
     from ..security import load_current_user
 
-    cfg = current_app.config["GK"]
     user = load_current_user()
     if user is None:
-        return jsonify({"user": None, "csrf": None, "demo": cfg.demo_mode,
-                        "demo_accounts": _demo_accounts() if cfg.demo_mode else None})
-    return jsonify({"user": user_public(user), "csrf": csrf_token(), "demo": cfg.demo_mode})
-
-
-def _demo_accounts():
-    from ..services.demo import DEMO_PASSWORD, DEMO_USERS
-
-    return [{"username": u, "role": r, "password": DEMO_PASSWORD} for u, _n, r in DEMO_USERS]
+        return jsonify({"user": None, "csrf": None})
+    return jsonify({"user": user_public(user), "csrf": csrf_token()})
 
 
 @bp.post("/password")

@@ -1,17 +1,15 @@
 """OpenWeatherMap 5-day / 3-hour forecast client (FR-WX-01..03)."""
 from __future__ import annotations
 
-import math
-import random
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import httpx
 from flask import current_app
 
 from ..db import db
 from ..models import AppState, WeatherForecast
-from ..timeutil import iso, to_manila, utcnow
+from ..timeutil import iso, utcnow
 
 OWM_URL = "https://api.openweathermap.org/data/2.5/forecast"
 
@@ -76,54 +74,7 @@ def fetch_owm(lat: float, lon: float, api_key: str, attempts: int = 3) -> dict:
     raise WeatherError(str(last))
 
 
-def synthetic_step(when: datetime, lat: float, force_rain: bool = False) -> dict:
-    """Deterministic demo weather for the 3-hour step at `when` (UTC)."""
-    local = to_manila(when)
-    rng = random.Random(int(when.timestamp()) // 10800 + int(lat * 1000))
-    phase = (local.hour - 9) / 24 * 2 * math.pi
-    temp = 28.5 + 3.8 * math.sin(phase) + rng.uniform(-0.8, 0.8)
-    hum = 78 - 12 * math.sin(phase) + rng.uniform(-4, 4)
-    roll = rng.random()
-    afternoon = 13 <= local.hour <= 19
-    if force_rain:
-        cond, pop, rain = "Rain", 85.0 + rng.uniform(0, 10), 2.2 + rng.uniform(0, 3)
-    elif roll < (0.2 if afternoon else 0.08):
-        cond = "Thunderstorm" if afternoon and roll < 0.07 else "Rain"
-        pop, rain = 55 + rng.uniform(0, 40), rng.uniform(0.4, 4.5)
-    elif roll < 0.55:
-        cond, pop, rain = "Clouds", rng.uniform(5, 45), 0.0
-    elif roll < 0.6:
-        cond, pop, rain = "Haze", rng.uniform(0, 20), 0.0
-    else:
-        cond, pop, rain = "Clear", rng.uniform(0, 15), 0.0
-    return {
-        "temperature_c": round(temp, 1),
-        "humidity_pct": round(max(40, min(98, hum))),
-        "rain_3h_mm": round(rain, 2),
-        "weather_condition": cond,
-        "pop_pct": round(min(100, pop)),
-    }
-
-
-def step_time(t: datetime) -> datetime:
-    """The 3-hour step (OWM-style, on 00/03/06... UTC) at or after t."""
-    base = t.replace(minute=0, second=0, microsecond=0)
-    base = base.replace(hour=(base.hour // 3) * 3)
-    return base if base >= t else base + timedelta(hours=3)
-
-
-def synthetic_forecast(lat: float, retrieved_at: datetime, force_rain_until: datetime | None = None, steps: int = 40) -> list[WeatherForecast]:
-    """Plausible Manila weather for the demo when no OWM key is configured."""
-    out = []
-    start = step_time(retrieved_at + timedelta(minutes=1))
-    for i in range(steps):
-        when = start + timedelta(hours=3 * i)
-        forced = force_rain_until is not None and when <= force_rain_until
-        out.append(WeatherForecast(retrieved_at=retrieved_at, forecast_for=when, **synthetic_step(when, lat, forced)))
-    return out
-
-
-def refresh_forecast(now: datetime | None = None, force_rain_until: datetime | None = None) -> dict:
+def refresh_forecast(now: datetime | None = None) -> dict:
     """Fetch and store one forecast batch. Returns a small status dict."""
     from .settings_service import current_settings
 
@@ -135,9 +86,6 @@ def refresh_forecast(now: datetime | None = None, force_rain_until: datetime | N
         if cfg.owm_api_key:
             rows = parse_owm(fetch_owm(st.garden_lat, st.garden_lon, cfg.owm_api_key), now)
             source = "openweathermap"
-        elif cfg.demo_mode:
-            rows = synthetic_forecast(st.garden_lat, now, force_rain_until=force_rain_until or _demo_rain_until())
-            source = "demo"
         else:
             raise WeatherError("OWM_API_KEY is not set")
         for r in rows:
@@ -156,15 +104,6 @@ def refresh_forecast(now: datetime | None = None, force_rain_until: datetime | N
         }
     _set_state("forecast_status", status)
     return status
-
-
-def _demo_rain_until() -> datetime | None:
-    row = _state("demo")
-    if row and (row.value_json or {}).get("force_rain_until"):
-        from ..timeutil import parse_iso
-
-        return parse_iso(row.value_json["force_rain_until"])
-    return None
 
 
 def forecast_status() -> dict:

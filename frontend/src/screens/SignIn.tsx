@@ -24,7 +24,7 @@ function welcomeStatus(): Status {
 
 export default function SignIn() {
   const { t, lang, setLang } = useI18n();
-  const { login, demo, demoAccounts } = useAuth();
+  const { login } = useAuth();
   const theme = useTheme();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -76,21 +76,6 @@ export default function SignIn() {
             {busy ? t("logging_in") : t("log_in")}
           </button>
         </form>
-        {demo && demoAccounts && (
-          <section className={s.demo} aria-labelledby="demo-h">
-            <h2 id="demo-h" style={{ fontSize: "var(--fs-16)" }}>{t("demo_title")}</h2>
-            <p className="muted small">{t("demo_note")}</p>
-            <div className={s.demoList}>
-              {demoAccounts.map((a) => (
-                <button key={a.username} type="button" className={s.demoBtn}
-                  onClick={() => { setUsername(a.username); setPassword(a.password); }}>
-                  <strong>{t(`role_${a.role}` as const)}</strong>
-                  <code>{a.username} / {a.password}</code>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
         <section aria-labelledby="privacy-h">
           <h2 id="privacy-h" className="visually-hidden">{t("privacy_title")}</h2>
           <p className={s.privacy}>{t("privacy_notice")}</p>

@@ -19,7 +19,7 @@ signature = hex(HMAC_SHA256(secret, METHOD + "\n" + PATH_WITH_QUERY + "\n" + TIM
 | `POST /sync` | after an offline period | readings get `synced_offline=true` and no new decision |
 | `GET /settings` | when the poll shows a newer version | compact settings object |
 
-`tools/device_simulator.py` signs requests exactly like the firmware and is the reference client.
+`DeviceClient` in `backend/tests/conftest.py` signs requests exactly like the firmware and is the reference client.
 
 ## Dashboard API (`/api/v1`)
 

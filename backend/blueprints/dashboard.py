@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import timedelta
 
-from flask import Blueprint, current_app, g, jsonify, request
+from flask import Blueprint, g, jsonify, request
 from sqlalchemy import func, select
 
 from ..db import db
@@ -30,11 +30,6 @@ bp = Blueprint("dashboard", __name__, url_prefix="/api/v1")
 
 
 def _housekeeping(now):
-    cfg = current_app.config["GK"]
-    if cfg.demo_mode:
-        from ..services import demo
-
-        demo.tick(now)
     jobs.run_due(now)
 
 

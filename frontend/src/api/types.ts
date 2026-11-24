@@ -20,8 +20,6 @@ export interface User {
 export interface Me {
   user: User | null;
   csrf: string | null;
-  demo: boolean;
-  demo_accounts?: { username: string; role: Role; password: string }[] | null;
 }
 
 export interface Probe {
@@ -64,7 +62,6 @@ export type WaterSource = "auto" | "manual" | "offline_failsafe" | "sensor_fault
 
 export interface Status {
   server_time: string;
-  demo: boolean;
   status: { code: StatusCode; level: Level; offline: boolean };
   device: null | { id: string; name: string; online: boolean; last_seen_at: string | null; fw: string | null; mode: string | null;
     read_now: null | { at: string; probes: { id: ProbeId; raw: number | null; vwc: number | null; fault: boolean }[] } };
@@ -137,5 +134,4 @@ export interface PowerEvent { id: number; at: string; from: string; to: string; 
 export interface Period { id: number; status: "online" | "offline"; started_at: string; ended_at: string | null; duration_s: number }
 export interface AuditItem { id: number; at: string; user: string | null; action: string; target: string | null; before: unknown; after: unknown }
 export interface DeviceInfo { id: string; name: string; fw: string | null; last_seen_at: string | null; key_rotated_at: string | null; online: boolean }
-export interface DemoState { faults: Record<ProbeId, boolean>; offline: boolean; power: "solar" | "adapter"; force_rain: boolean; buffered: number }
 export interface WaterUseDay { day: string; litres: number; pump_seconds: number; runs: number; flow_rate_lpm: number }

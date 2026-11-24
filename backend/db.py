@@ -1,7 +1,7 @@
 """Database engine and session handling (SQLAlchemy 2).
 
 Works with MySQL 8.4 (the paper's database, via PyMySQL), and with SQLite for
-local development, tests and the Vercel demo. Serverless-friendly: on Vercel the
+local development and tests. Serverless-friendly: on Vercel the
 engine uses NullPool so no idle connection outlives an invocation.
 """
 from __future__ import annotations
