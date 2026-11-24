@@ -82,9 +82,11 @@ may reset after a cold start. That is fine for a preview or the defense. Use 1b 
 **Request volume.** The node polls every 3 s, about 29,000 function calls a day. Check your
 Vercel plan's function-invocation limits. The on-site Docker profile has no such limit.
 
-**ESP32 and Vercel TLS.** The firmware pins the Let's Encrypt roots (ISRG Root X1/X2). If your
-domain's certificate chains to another root, choose "custom root CA" in the setup page and paste
-that root. You can find it with
+**ESP32 and Vercel TLS.** The firmware pins GTS Root R1/R4 (Google Trust Services, which signs
+`*.vercel.app` as of November 2026: `*.vercel.app <- WR1 <- GTS Root R1`) and the Let's Encrypt roots
+ISRG Root X1/X2/YR/YE (custom domains on Vercel, Caddy). If your domain's certificate chains to
+another root (TLS error -9984 in the serial log), choose "custom root CA" in the setup page and
+paste that root. `firmware/gardekalinga_vercel` prints the chain it receives once, or run
 `openssl s_client -showcerts -connect your-app.vercel.app:443`.
 
 ---
