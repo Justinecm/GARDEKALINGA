@@ -3,7 +3,7 @@
 | Folder | Use it when |
 |---|---|
 | `gardekalinga_node/` | Box B is wired to the paper: three probes, valve K1 on GPIO26, pump K2 on GPIO27, supply sense on GPIO33. |
-| `gardekalinga_vercel/` | The group's 1-probe sketch (10 s max run, 10 samples) sending to the Vercel website over HTTPS, with Water now / Stop from the dashboard. |
+| `gardekalinga_vercel/` | The group's 1-probe sketch (10 s max run, 10 samples) sending to the Vercel website over HTTPS, with Water now / Stop from the dashboard. One file: the certificates are inside it. |
 | `legacy_single_probe/` | Today's 1-probe prototype (original wiring). Reports to the dashboard and obeys Water now / Stop. |
 | `original/sketch_nov20a.ino` | The group's original sketch, unchanged, for reference. |
 
